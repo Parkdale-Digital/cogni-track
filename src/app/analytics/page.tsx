@@ -91,6 +91,9 @@ export default async function AnalyticsPage() {
 
   const events = await getUsageData(userId);
   const chartData = processChartData(events);
+  
+  // Bind server action with specific parameters
+  const refresh7Days = refreshUsageData.bind(null, 7);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -103,7 +106,7 @@ export default async function AnalyticsPage() {
           </div>
           <div className="flex space-x-4">
             <RefreshButton 
-              onRefresh={async () => await refreshUsageData(7)}
+              onRefresh={refresh7Days}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Refresh Data
@@ -142,7 +145,7 @@ export default async function AnalyticsPage() {
                 Add API Keys
               </a>
               <RefreshButton 
-                onRefresh={async () => await refreshUsageData(7)}
+                onRefresh={refresh7Days}
                 className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 Fetch Usage Data
