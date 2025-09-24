@@ -7,9 +7,9 @@ const isProtectedRoute = createRouteMatcher([
   '/api/usage(.*)',
 ]);
 
-export default clerkMiddleware((auth, req) => {
+export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
-    const session = auth();
+    const session = await auth();
     if (!session.userId) {
       // Will redirect to sign-in page
       return;
