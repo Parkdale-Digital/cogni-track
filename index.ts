@@ -1,0 +1,40 @@
+import type { Metadata } from "next";
+    import { Inter } from "next/font/google";
+    import "./globals.css";
+    import { ClerkProvider } from "@clerk/nextjs";
+
+    const inter = Inter({ subsets: ["latin"] });
+
+    export const metadata: Metadata = {
+      title: "LLM Usage Tracker",
+      description: "Track your LLM API usage and costs.",
+    };
+
+    export default function RootLayout({
+      children,
+    }: Readonly<{
+      children: React.ReactNode;
+    }>) {
+      return (
+        <ClerkProvider>
+          <html lang="en">
+            <body className={inter.className}>{children}</body>
+          </html>
+        </ClerkProvider>
+      );
+    }
+
+import { SignIn } from "@clerk/nextjs";
+
+    export default function Page() {
+      return <SignIn />;
+    }
+
+import { SignUp } from "@clerk/nextjs";
+
+    export default function Page() {
+      return <SignUp />;
+    }
+
+// Sources:
+// 1. https://github.com/amiralizadde/Threads-app
