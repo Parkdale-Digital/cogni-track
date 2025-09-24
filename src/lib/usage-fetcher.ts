@@ -118,19 +118,37 @@ export async function fetchAndStoreUsageForUser(userId: string, daysBack: number
         // Fetch usage data from OpenAI
         const usageData = await fetchOpenAIUsage(decryptedKey, startDate, endDate);
 
-        // Store usage events in database
+        // Store usage events in database with deduplication
+        let newEventsCount = 0;
         for (const usage of usageData) {
-          await db.insert(usageEvents).values({
-            keyId: keyRecord.id,
-            model: usage.model,
-            tokensIn: usage.tokensIn,
-            tokensOut: usage.tokensOut,
-            costEstimate: usage.costEstimate.toFixed(6),
-            timestamp: usage.timestamp,
-          });
+          // Check if this exact event already exists
+          const existingEvent = await db
+            .select()
+            .from(usageEvents)
+            .where(and(
+              eq(usageEvents.keyId, keyRecord.id),
+              eq(usageEvents.model, usage.model),
+              eq(usageEvents.timestamp, usage.timestamp),
+              eq(usageEvents.tokensIn, usage.tokensIn),
+              eq(usageEvents.tokensOut, usage.tokensOut)
+            ))
+            .limit(1);
+
+          // Only insert if the event doesn't already exist
+          if (existingEvent.length === 0) {
+            await db.insert(usageEvents).values({
+              keyId: keyRecord.id,
+              model: usage.model,
+              tokensIn: usage.tokensIn,
+              tokensOut: usage.tokensOut,
+              costEstimate: usage.costEstimate.toFixed(6),
+              timestamp: usage.timestamp,
+            });
+            newEventsCount++;
+          }
         }
 
-        console.log(`Stored ${usageData.length} usage events for key ${keyRecord.id}`);
+        console.log(`Stored ${newEventsCount} new usage events for key ${keyRecord.id} (${usageData.length - newEventsCount} duplicates skipped)`);
       } catch (error) {
         console.error(`Error processing key ${keyRecord.id}:`, error);
         // Continue with other keys even if one fails
