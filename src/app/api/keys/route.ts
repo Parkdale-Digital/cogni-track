@@ -71,15 +71,41 @@ export async function GET() {
     await ensureUser(userId);
 
     const providerKeys = await db
-      .select({
-        id: schema.providerKeys.id,
-        provider: schema.providerKeys.provider,
-        createdAt: schema.providerKeys.createdAt,
-      })
+      .select()
       .from(schema.providerKeys)
       .where(eq(schema.providerKeys.userId, userId));
 
-    return NextResponse.json({ keys: providerKeys });
+    // Decrypt and mask keys for display
+    const keysWithMasked = providerKeys.map(key => {
+      try {
+        const decryptedKey = decrypt({
+          encryptedText: key.encryptedKey,
+          iv: key.iv,
+          authTag: key.authTag,
+        });
+        
+        const maskedKey = decryptedKey.length > 8 
+          ? `${decryptedKey.slice(0, 4)}...${decryptedKey.slice(-4)}`
+          : '****';
+
+        return {
+          id: key.id,
+          provider: key.provider,
+          maskedKey,
+          createdAt: key.createdAt,
+        };
+      } catch (error) {
+        console.error('Error decrypting key:', error);
+        return {
+          id: key.id,
+          provider: key.provider,
+          maskedKey: '****',
+          createdAt: key.createdAt,
+        };
+      }
+    });
+
+    return NextResponse.json({ keys: keysWithMasked });
   } catch (error) {
     console.error('Error fetching provider keys:', error);
     return NextResponse.json(
