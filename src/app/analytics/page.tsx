@@ -4,14 +4,8 @@ import { redirect } from 'next/navigation';
 import { db } from '../../lib/database';
 import { usageEvents, providerKeys } from '../../db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
-import UsageSummary from '../../components/UsageSummary';
-import UsageChart from '../../components/UsageChart';
 import RefreshButton from '../../components/RefreshButton';
-import ExportControls from '../../components/ExportControls';
-import AdvancedFilters from '../../components/AdvancedFilters';
-import GrowthAnalysis from '../../components/GrowthAnalysis';
-import CostAlerts from '../../components/CostAlerts';
-import DataAggregation from '../../components/DataAggregation';
+import FilterableAnalyticsDashboard from '../../components/FilterableAnalyticsDashboard';
 import { refreshUsageData } from './actions';
 
 interface UsageEvent {
@@ -24,11 +18,7 @@ interface UsageEvent {
   provider: string;
 }
 
-interface UsageDataPoint {
-  date: string;
-  tokens: number;
-  cost: number;
-}
+// Removed UsageDataPoint interface - now handled in FilterableAnalyticsDashboard
 
 async function getUsageData(userId: string): Promise<UsageEvent[]> {
   try {
@@ -58,32 +48,7 @@ async function getUsageData(userId: string): Promise<UsageEvent[]> {
   }
 }
 
-function processChartData(events: UsageEvent[]): { tokens: UsageDataPoint[]; cost: UsageDataPoint[] } {
-  // Group events by date
-  const dailyData = events.reduce((acc, event) => {
-    const date = new Date(event.timestamp).toISOString().split('T')[0];
-    if (!acc[date]) {
-      acc[date] = { tokens: 0, cost: 0 };
-    }
-    acc[date].tokens += (event.tokensIn || 0) + (event.tokensOut || 0);
-    acc[date].cost += parseFloat(event.costEstimate || '0');
-    return acc;
-  }, {} as Record<string, { tokens: number; cost: number }>);
-
-  // Convert to chart format and sort by date
-  const chartData = Object.entries(dailyData)
-    .map(([date, data]) => ({
-      date,
-      tokens: data.tokens,
-      cost: data.cost,
-    }))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-  return {
-    tokens: chartData,
-    cost: chartData,
-  };
-}
+// Removed processChartData function - now handled in FilterableAnalyticsDashboard
 
 // Removed fetchUsageData - now using server actions
 
@@ -95,7 +60,6 @@ export default async function AnalyticsPage() {
   }
 
   const events = await getUsageData(userId);
-  const chartData = processChartData(events);
   
   // Extract unique providers and models for filtering
   const availableProviders = [...new Set(events.map(e => e.provider))];
@@ -111,69 +75,31 @@ export default async function AnalyticsPage() {
         <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Usage Analytics</h1>
-            <p className="text-gray-600 mt-2">Monitor your LLM API usage and costs with advanced insights</p>
+            <p className="text-gray-600 mt-2">Monitor your LLM API usage and costs with advanced insights and filtering</p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <ExportControls events={events} />
-            <div className="flex gap-3">
-              <RefreshButton 
-                onRefresh={refresh7Days}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Refresh Data
-              </RefreshButton>
-              <a 
-                href="/dashboard" 
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Manage Keys
-              </a>
-            </div>
+          <div className="flex gap-3">
+            <RefreshButton 
+              onRefresh={refresh7Days}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Refresh Data
+            </RefreshButton>
+            <a 
+              href="/dashboard" 
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Manage Keys
+            </a>
           </div>
         </div>
 
-        {/* Advanced Filters */}
-        <div className="mb-8">
-          <AdvancedFilters 
-            onFiltersChange={(filters) => {
-              // Note: In a real implementation, this would trigger a re-fetch with filters
-              console.log('Filters changed:', filters);
-            }}
+        {/* Filterable Analytics Dashboard */}
+        {events.length > 0 ? (
+          <FilterableAnalyticsDashboard 
+            events={events}
             availableProviders={availableProviders}
             availableModels={availableModels}
           />
-        </div>
-
-        {/* Cost Alerts */}
-        <div className="mb-8">
-          <CostAlerts events={events} />
-        </div>
-
-        {/* Growth Analysis */}
-        {events.length > 0 && (
-          <div className="mb-8">
-            <GrowthAnalysis events={events} />
-          </div>
-        )}
-
-        {/* Usage Summary */}
-        <div className="mb-8">
-          <UsageSummary events={events} />
-        </div>
-
-        {/* Data Aggregation Reports */}
-        {events.length > 0 && (
-          <div className="mb-8">
-            <DataAggregation events={events} />
-          </div>
-        )}
-
-        {/* Charts */}
-        {events.length > 0 ? (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
-            <UsageChart data={chartData.tokens} type="tokens" />
-            <UsageChart data={chartData.cost} type="cost" />
-          </div>
         ) : (
           <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
             <div className="text-gray-500 mb-4">No usage data available</div>
@@ -193,67 +119,6 @@ export default async function AnalyticsPage() {
               >
                 Fetch Usage Data
               </RefreshButton>
-            </div>
-          </div>
-        )}
-
-        {/* Recent Events Table */}
-        {events.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-800">Recent Usage Events</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Timestamp
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Provider
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Model
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tokens In
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tokens Out
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Cost
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {events.slice(0, 20).map((event) => (
-                    <tr key={event.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(event.timestamp).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full capitalize">
-                          {event.provider}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {event.model}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {(event.tokensIn || 0).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {(event.tokensOut || 0).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${parseFloat(event.costEstimate || '0').toFixed(4)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         )}
