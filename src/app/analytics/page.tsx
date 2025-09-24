@@ -7,6 +7,11 @@ import { eq, desc, sql } from 'drizzle-orm';
 import UsageSummary from '../../components/UsageSummary';
 import UsageChart from '../../components/UsageChart';
 import RefreshButton from '../../components/RefreshButton';
+import ExportControls from '../../components/ExportControls';
+import AdvancedFilters from '../../components/AdvancedFilters';
+import GrowthAnalysis from '../../components/GrowthAnalysis';
+import CostAlerts from '../../components/CostAlerts';
+import DataAggregation from '../../components/DataAggregation';
 import { refreshUsageData } from './actions';
 
 interface UsageEvent {
@@ -92,6 +97,10 @@ export default async function AnalyticsPage() {
   const events = await getUsageData(userId);
   const chartData = processChartData(events);
   
+  // Extract unique providers and models for filtering
+  const availableProviders = [...new Set(events.map(e => e.provider))];
+  const availableModels = [...new Set(events.map(e => e.model))];
+  
   // Bind server action with specific parameters
   const refresh7Days = refreshUsageData.bind(null, 7);
 
@@ -99,31 +108,65 @@ export default async function AnalyticsPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Usage Analytics</h1>
-            <p className="text-gray-600 mt-2">Monitor your LLM API usage and costs</p>
+            <p className="text-gray-600 mt-2">Monitor your LLM API usage and costs with advanced insights</p>
           </div>
-          <div className="flex space-x-4">
-            <RefreshButton 
-              onRefresh={refresh7Days}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Refresh Data
-            </RefreshButton>
-            <a 
-              href="/dashboard" 
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              Manage Keys
-            </a>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <ExportControls events={events} />
+            <div className="flex gap-3">
+              <RefreshButton 
+                onRefresh={refresh7Days}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Refresh Data
+              </RefreshButton>
+              <a 
+                href="/dashboard" 
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Manage Keys
+              </a>
+            </div>
           </div>
         </div>
+
+        {/* Advanced Filters */}
+        <div className="mb-8">
+          <AdvancedFilters 
+            onFiltersChange={(filters) => {
+              // Note: In a real implementation, this would trigger a re-fetch with filters
+              console.log('Filters changed:', filters);
+            }}
+            availableProviders={availableProviders}
+            availableModels={availableModels}
+          />
+        </div>
+
+        {/* Cost Alerts */}
+        <div className="mb-8">
+          <CostAlerts events={events} />
+        </div>
+
+        {/* Growth Analysis */}
+        {events.length > 0 && (
+          <div className="mb-8">
+            <GrowthAnalysis events={events} />
+          </div>
+        )}
 
         {/* Usage Summary */}
         <div className="mb-8">
           <UsageSummary events={events} />
         </div>
+
+        {/* Data Aggregation Reports */}
+        {events.length > 0 && (
+          <div className="mb-8">
+            <DataAggregation events={events} />
+          </div>
+        )}
 
         {/* Charts */}
         {events.length > 0 ? (
