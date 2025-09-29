@@ -54,11 +54,21 @@ export async function fetchOpenAIUsage(apiKey: string, startDate: Date, endDate:
   const url = `https://api.openai.com/v1/usage?start_time=${startTimestamp}&end_time=${endTimestamp}`;
   
   try {
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    };
+
+    if (process.env.OPENAI_ORGANIZATION) {
+      headers['OpenAI-Organization'] = process.env.OPENAI_ORGANIZATION;
+    }
+
+    if (process.env.OPENAI_PROJECT) {
+      headers['OpenAI-Project'] = process.env.OPENAI_PROJECT;
+    }
+
     const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {
