@@ -4,10 +4,21 @@ import { eq, and } from 'drizzle-orm';
 import { db, schema } from '../../../../lib/database';
 import { encrypt, decrypt } from '../../../../lib/encryption';
 
+type RouteParams = Record<string, string | string[]>;
+
+function extractKeyId(params: RouteParams) {
+  const raw = params.id;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) {
+    return NaN;
+  }
+  return Number.parseInt(value, 10);
+}
+
 // GET /api/keys/[id] - Get a specific provider key (decrypted for display purposes only)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: any
 ) {
   try {
     const { userId } = await auth();
@@ -16,7 +27,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const keyId = parseInt(params.id);
+    const keyId = extractKeyId((context?.params ?? {}) as RouteParams);
     if (isNaN(keyId)) {
       return NextResponse.json({ error: 'Invalid key ID' }, { status: 400 });
     }
@@ -66,7 +77,7 @@ export async function GET(
 // PUT /api/keys/[id] - Update an existing provider key
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: any
 ) {
   try {
     const { userId } = await auth();
@@ -75,7 +86,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const keyId = parseInt(params.id);
+    const keyId = extractKeyId((context?.params ?? {}) as RouteParams);
     if (isNaN(keyId)) {
       return NextResponse.json({ error: 'Invalid key ID' }, { status: 400 });
     }
@@ -144,7 +155,7 @@ export async function PUT(
 // DELETE /api/keys/[id] - Delete a provider key
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: any
 ) {
   try {
     const { userId } = await auth();
@@ -153,7 +164,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const keyId = parseInt(params.id);
+    const keyId = extractKeyId((context?.params ?? {}) as RouteParams);
     if (isNaN(keyId)) {
       return NextResponse.json({ error: 'Invalid key ID' }, { status: 400 });
     }

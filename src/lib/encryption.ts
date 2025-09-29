@@ -2,25 +2,30 @@ import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // For GCM, 12 bytes (96 bits) is recommended
-const TAG_LENGTH = 16; // For GCM, 16 bytes (128 bits)
 
 /**
  * Get the master encryption key from environment variables
  * In production, this should be a properly managed secret
  */
 function getMasterKey(): Buffer {
-  const key = process.env.ENCRYPTION_MASTER_KEY;
-  if (!key) {
-    throw new Error('ENCRYPTION_MASTER_KEY environment variable is required');
+  const rawKey = process.env.ENCRYPTION_KEY;
+
+  if (!rawKey) {
+    throw new Error('ENCRYPTION_KEY environment variable is required');
   }
-  
-  // If the key is a hex string, convert it to buffer
-  if (key.length === 64) {
-    return Buffer.from(key, 'hex');
+
+  let key: Buffer;
+  try {
+    key = Buffer.from(rawKey, 'base64');
+  } catch (error) {
+    throw new Error('ENCRYPTION_KEY must be a base64-encoded string');
   }
-  
-  // Otherwise, hash the key to get a 32-byte key
-  return crypto.createHash('sha256').update(key).digest();
+
+  if (key.length !== 32) {
+    throw new Error('ENCRYPTION_KEY must decode to a 32-byte value');
+  }
+
+  return key;
 }
 
 export interface EncryptedData {
