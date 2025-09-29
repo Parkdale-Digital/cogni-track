@@ -55,5 +55,9 @@ coverage/
 .next/
 .local/
 .replit
+.clinerules
+replit.*
+AGENTS.md
+CLAUDE.md
 
 .env.*

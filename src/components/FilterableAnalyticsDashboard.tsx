@@ -9,6 +9,8 @@ import GrowthAnalysis from './GrowthAnalysis';
 import CostAlerts from './CostAlerts';
 import DataAggregation from './DataAggregation';
 
+import ClientOnlyTimestamp from './ClientOnlyTimestamp';
+
 interface UsageEvent {
   id: number;
   model: string;
@@ -258,7 +260,7 @@ export default function FilterableAnalyticsDashboard({
                 {filteredEvents.slice(0, 20).map((event) => (
                   <tr key={event.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(event.timestamp).toLocaleString()}
+                      <ClientOnlyTimestamp timestamp={event.timestamp} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full capitalize">
