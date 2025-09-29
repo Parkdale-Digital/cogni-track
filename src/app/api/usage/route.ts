@@ -23,16 +23,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch and store usage data
-    await fetchAndStoreUsageForUser(userId, daysBack);
+    const telemetry = await fetchAndStoreUsageForUser(userId, daysBack);
 
     return NextResponse.json({ 
       success: true, 
-      message: `Usage data fetched for ${daysBack} day(s)` 
+      message: `Usage data fetched for ${daysBack} day(s)`,
+      telemetry,
     });
   } catch (error) {
     console.error('Error fetching usage data:', error);
+    const message = error instanceof Error ? error.message : 'Failed to fetch usage data';
     return NextResponse.json({ 
-      error: 'Failed to fetch usage data' 
+      error: message 
     }, { status: 500 });
   }
 }

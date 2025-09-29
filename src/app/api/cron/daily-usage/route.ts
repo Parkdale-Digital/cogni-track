@@ -22,13 +22,19 @@ export async function GET(request: NextRequest) {
 
     let successCount = 0;
     let errorCount = 0;
+    const warnings: Array<{ userId: string; issues: number }> = [];
 
     // Process each user
     for (const user of allUsers) {
       try {
-        await fetchAndStoreUsageForUser(user.id, 1); // Fetch last 1 day
+        const telemetry = await fetchAndStoreUsageForUser(user.id, 1); // Fetch last 1 day
         successCount++;
-        console.log(`Successfully processed user ${user.id}`);
+        if (telemetry.issues.length > 0) {
+          warnings.push({ userId: user.id, issues: telemetry.issues.length });
+          console.warn('Usage ingestion completed with issues', telemetry);
+        } else {
+          console.log(`Successfully processed user ${user.id}`);
+        }
       } catch (error) {
         errorCount++;
         console.error(`Error processing user ${user.id}:`, error);
@@ -40,6 +46,7 @@ export async function GET(request: NextRequest) {
       processed: allUsers.length,
       successful: successCount,
       errors: errorCount,
+      warnings,
       timestamp: new Date().toISOString(),
     };
 

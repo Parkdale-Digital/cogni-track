@@ -16,6 +16,8 @@ interface ProviderKey {
   provider: string;
   maskedKey?: string;
   createdAt: string;
+  usageMode?: 'standard' | 'admin';
+  hasOrgConfig?: boolean;
 }
 
 export default function DashboardPage() {
@@ -59,13 +61,19 @@ export default function DashboardPage() {
     }
   };
 
-  const handleAddKey = async (provider: string, apiKey: string) => {
+  const handleAddKey = async (payload: {
+    provider: string;
+    apiKey: string;
+    usageMode: 'standard' | 'admin';
+    organizationId?: string;
+    projectId?: string;
+  }) => {
     try {
       setIsAdding(true);
       const response = await fetch('/api/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, apiKey }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -89,13 +97,21 @@ export default function DashboardPage() {
     }
   };
 
-  const handleUpdateKey = async (keyId: number, apiKey: string) => {
+  const handleUpdateKey = async (
+    keyId: number,
+    payload: {
+      apiKey?: string;
+      usageMode: 'standard' | 'admin';
+      organizationId?: string;
+      projectId?: string;
+    }
+  ) => {
     try {
       setIsEditingState(true);
       const response = await fetch(`/api/keys/${keyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -179,6 +195,8 @@ export default function DashboardPage() {
             <EditKeyForm
               keyId={editingKey.id}
               currentProvider={editingKey.provider}
+              currentUsageMode={editingKey.usageMode ?? 'standard'}
+              hasOrgConfig={Boolean(editingKey.hasOrgConfig)}
               onUpdateKey={handleUpdateKey}
               onCancel={() => setEditingKey(null)}
               isLoading={isEditing}

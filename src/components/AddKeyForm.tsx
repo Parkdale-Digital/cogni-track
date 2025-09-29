@@ -14,8 +14,18 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+type UsageMode = 'standard' | 'admin';
+
+interface AddKeyPayload {
+  provider: string;
+  apiKey: string;
+  usageMode: UsageMode;
+  organizationId?: string;
+  projectId?: string;
+}
+
 interface AddKeyFormProps {
-  onAddKey: (provider: string, apiKey: string) => Promise<void>;
+  onAddKey: (payload: AddKeyPayload) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
@@ -23,6 +33,9 @@ interface AddKeyFormProps {
 export default function AddKeyForm({ onAddKey, onCancel, isLoading }: AddKeyFormProps) {
   const [provider, setProvider] = useState('openai');
   const [apiKey, setApiKey] = useState('');
+  const [usageMode, setUsageMode] = useState<UsageMode>('standard');
+  const [organizationId, setOrganizationId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [error, setError] = useState('');
 
   const providers = [
@@ -36,17 +49,46 @@ export default function AddKeyForm({ onAddKey, onCancel, isLoading }: AddKeyForm
     event.preventDefault();
     setError('');
 
-    if (!apiKey.trim()) {
+    const trimmedKey = apiKey.trim();
+    if (!trimmedKey) {
       setError('API key is required');
       return;
     }
 
+    const trimmedOrg = organizationId.trim();
+    const trimmedProject = projectId.trim();
+    const normalizedOrg = ensureOrgPrefix(trimmedOrg);
+    const normalizedProject = ensureProjectPrefix(trimmedProject);
+
+    if (provider === 'openai' && usageMode === 'admin' && (!normalizedOrg || !normalizedProject)) {
+      setError('Organization and Project IDs are required for admin mode');
+      return;
+    }
+
     try {
-      await onAddKey(provider, apiKey.trim());
+      await onAddKey({
+        provider,
+        apiKey: trimmedKey,
+        usageMode: provider === 'openai' ? usageMode : 'standard',
+        organizationId: provider === 'openai' && usageMode === 'admin' ? normalizedOrg : undefined,
+        projectId: provider === 'openai' && usageMode === 'admin' ? normalizedProject : undefined,
+      });
       setApiKey('');
       setProvider('openai');
+      setUsageMode('standard');
+      setOrganizationId('');
+      setProjectId('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add API key');
+    }
+  };
+
+  const handleProviderChange = (value: string) => {
+    setProvider(value);
+    if (value !== 'openai') {
+      setUsageMode('standard');
+      setOrganizationId('');
+      setProjectId('');
     }
   };
 
@@ -62,7 +104,7 @@ export default function AddKeyForm({ onAddKey, onCancel, isLoading }: AddKeyForm
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="provider">Provider</Label>
-            <Select value={provider} onValueChange={setProvider} disabled={isLoading}>
+            <Select value={provider} onValueChange={handleProviderChange} disabled={isLoading}>
               <SelectTrigger id="provider">
                 <SelectValue placeholder="Select a provider" />
               </SelectTrigger>
@@ -75,6 +117,57 @@ export default function AddKeyForm({ onAddKey, onCancel, isLoading }: AddKeyForm
               </SelectContent>
             </Select>
           </div>
+
+          {provider === 'openai' && (
+            <div className="space-y-2">
+              <Label htmlFor="usageMode">Usage mode</Label>
+              <Select value={usageMode} onValueChange={(value) => setUsageMode(value as UsageMode)} disabled={isLoading}>
+                <SelectTrigger id="usageMode">
+                  <SelectValue placeholder="Select usage mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Standard (per-key usage)</SelectItem>
+                  <SelectItem value="admin">Org admin (requires org/project IDs)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Admin mode pulls usage from your OpenAI organization/project. Only choose this if you want org-level billing data.
+              </p>
+            </div>
+          )}
+
+          {provider === 'openai' && usageMode === 'admin' && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="organizationId">Organization ID</Label>
+                <Input
+                  id="organizationId"
+                  value={organizationId}
+                  onChange={(event) => setOrganizationId(event.target.value)}
+                  onBlur={() => setOrganizationId((prev) => ensureOrgPrefix(prev))}
+                  placeholder="org-..."
+                  disabled={isLoading}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Paste the value from OpenAI; we’ll add the `org-` prefix automatically.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="projectId">Project ID</Label>
+                <Input
+                  id="projectId"
+                  value={projectId}
+                  onChange={(event) => setProjectId(event.target.value)}
+                  onBlur={() => setProjectId((prev) => ensureProjectPrefix(prev))}
+                  placeholder="proj_..."
+                  disabled={isLoading}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Required to scope usage to the correct OpenAI project.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="apiKey">API key</Label>
@@ -113,3 +206,20 @@ export default function AddKeyForm({ onAddKey, onCancel, isLoading }: AddKeyForm
     </Card>
   );
 }
+  const ensureOrgPrefix = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (/^org[-_]/i.test(trimmed)) {
+      return trimmed;
+    }
+    return `org-${trimmed}`;
+  };
+
+  const ensureProjectPrefix = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (/^proj[-_]/i.test(trimmed)) {
+      return trimmed;
+    }
+    return `proj_${trimmed}`;
+  };

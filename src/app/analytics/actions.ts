@@ -11,10 +11,15 @@ export async function refreshUsageData(daysBack: number = 7) {
   }
 
   try {
-    await fetchAndStoreUsageForUser(userId, daysBack);
-    return { success: true, message: `Usage data refreshed for ${daysBack} day(s)` };
+    const telemetry = await fetchAndStoreUsageForUser(userId, daysBack);
+    return {
+      success: true,
+      message: `Usage data refreshed for ${daysBack} day(s)`,
+      telemetry,
+    };
   } catch (error) {
     console.error('Error refreshing usage data:', error);
-    throw new Error('Failed to refresh usage data');
+    const message = error instanceof Error ? error.message : 'Failed to refresh usage data';
+    throw new Error(message);
   }
 }

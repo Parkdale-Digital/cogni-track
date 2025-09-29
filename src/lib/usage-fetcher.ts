@@ -53,21 +53,90 @@ export interface UsageEventData {
   tokensOut: number;
   costEstimate: number;
   timestamp: Date;
+  pricingKey?: string;
+  pricingFallback?: boolean;
+}
+
+export interface IngestionIssue {
+  keyId: number;
+  message: string;
+  code?: string;
+  status?: number;
+}
+
+export interface IngestionTelemetry {
+  userId: string;
+  processedKeys: number;
+  simulatedKeys: number;
+  failedKeys: number;
+  storedEvents: number;
+  skippedEvents: number;
+  issues: IngestionIssue[];
 }
 
 const OPENAI_USAGE_MODE = (process.env.OPENAI_USAGE_MODE ?? 'standard').toLowerCase() as OpenAIUsageMode;
 const OPENAI_ORGANIZATION = process.env.OPENAI_ORGANIZATION ?? process.env.OPENAI_ORG_ID ?? undefined;
 const OPENAI_PROJECT = process.env.OPENAI_PROJECT ?? process.env.OPENAI_PROJECT_ID ?? undefined;
 const OPENAI_ADMIN_LIMIT = Math.max(1, Math.min(Number(process.env.OPENAI_ADMIN_LIMIT ?? 31), 31));
+const ENABLE_SIMULATED_USAGE = (process.env.ENABLE_SIMULATED_USAGE ?? 'false').toLowerCase() === 'true';
 
-// OpenAI pricing per 1K tokens (as of 2024)
-const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
-  'gpt-4-turbo': { input: 0.01, output: 0.03 },
-  'gpt-4': { input: 0.03, output: 0.06 },
+type TokenPricing = {
+  input: number;
+  output: number;
+};
+
+const DEFAULT_PRICING_KEY = 'gpt-3.5-turbo';
+
+// OpenAI pricing per 1K tokens (defaults; override via OPENAI_PRICING_OVERRIDES)
+const OPENAI_PRICING: Record<string, TokenPricing> = {
   'gpt-3.5-turbo': { input: 0.001, output: 0.002 },
+  'gpt-4': { input: 0.03, output: 0.06 },
+  'gpt-4-turbo': { input: 0.01, output: 0.03 },
   'gpt-4o': { input: 0.005, output: 0.015 },
   'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
+  'gpt-5': { input: 0.015, output: 0.06 },
+  'gpt-5-cached_input': { input: 0.003, output: 0 },
+  'gpt-5-cached_output': { input: 0, output: 0.02 },
+  'gpt-5-2025-08-07': { input: 0.015, output: 0.06 },
+  'gpt-5-2025-08-07-cached_input': { input: 0.003, output: 0 },
+  'gpt-5-2025-08-07-cached_output': { input: 0, output: 0.02 },
 };
+
+const PRICING_FALLBACK_RULES: Array<{ test: (model: string) => boolean; key: string }> = [
+  { test: (model) => /^gpt-5.*cached[_-]?input/.test(model), key: 'gpt-5-cached_input' },
+  { test: (model) => /^gpt-5.*cached[_-]?output/.test(model), key: 'gpt-5-cached_output' },
+  { test: (model) => /^gpt-5/.test(model), key: 'gpt-5' },
+  { test: (model) => /^gpt-4o.*mini/.test(model), key: 'gpt-4o-mini' },
+  { test: (model) => /^gpt-4o/.test(model), key: 'gpt-4o' },
+  { test: (model) => /^gpt-4.*turbo/.test(model), key: 'gpt-4-turbo' },
+  { test: (model) => /^gpt-4/.test(model), key: 'gpt-4' },
+];
+
+const pricingOverrideEnv = process.env.OPENAI_PRICING_OVERRIDES;
+let PRICING_OVERRIDES: Record<string, TokenPricing> = {};
+if (pricingOverrideEnv) {
+  try {
+    PRICING_OVERRIDES = JSON.parse(pricingOverrideEnv);
+  } catch (error) {
+    console.error('[usage-fetcher] Failed to parse OPENAI_PRICING_OVERRIDES', error);
+  }
+}
+
+const PRICING_FALLBACK_WARNINGS = new Set<string>();
+
+interface UsageModeConfiguration {
+  mode: OpenAIUsageMode;
+  organizationId?: string;
+  projectId?: string;
+}
+
+const DEFAULT_USAGE_CONFIGURATION: UsageModeConfiguration = OPENAI_USAGE_MODE === 'admin'
+  ? {
+      mode: 'admin',
+      organizationId: OPENAI_ORGANIZATION,
+      projectId: OPENAI_PROJECT,
+    }
+  : { mode: 'standard' };
 
 class OpenAIUsageError extends Error {
   constructor(message: string, public readonly code: 'UNAUTHORIZED' | 'SCOPE_MISSING' | 'PROVIDER_ERROR') {
@@ -76,16 +145,106 @@ class OpenAIUsageError extends Error {
   }
 }
 
-function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = OPENAI_PRICING[model] || OPENAI_PRICING['gpt-3.5-turbo'];
+class UsageConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UsageConfigurationError';
+  }
+}
+
+function validateUsageConfiguration(config: UsageModeConfiguration): void {
+  if (config.mode === 'admin') {
+    if (!config.organizationId || !config.projectId) {
+      throw new UsageConfigurationError(
+        'Admin usage mode requires both organization and project identifiers.'
+      );
+    }
+  }
+}
+
+function resolvePricing(model: string): { pricing: TokenPricing; key: string; fallback: boolean } {
+  if (PRICING_OVERRIDES[model]) {
+    return { pricing: PRICING_OVERRIDES[model], key: model, fallback: false };
+  }
+
+  if (OPENAI_PRICING[model]) {
+    return { pricing: OPENAI_PRICING[model], key: model, fallback: false };
+  }
+
+  for (const rule of PRICING_FALLBACK_RULES) {
+    if (rule.test(model)) {
+      const key = rule.key;
+      const pricing = PRICING_OVERRIDES[key] ?? OPENAI_PRICING[key];
+      if (pricing) {
+        return { pricing, key, fallback: true };
+      }
+    }
+  }
+
+  const defaultPricing = PRICING_OVERRIDES[DEFAULT_PRICING_KEY] ?? OPENAI_PRICING[DEFAULT_PRICING_KEY];
+  return { pricing: defaultPricing, key: DEFAULT_PRICING_KEY, fallback: true };
+}
+
+function calculateCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number
+): { amount: number; pricingKey: string; fallback: boolean } {
+  const { pricing, key, fallback } = resolvePricing(model);
+  if (fallback && !PRICING_FALLBACK_WARNINGS.has(model)) {
+    PRICING_FALLBACK_WARNINGS.add(model);
+    console.warn('[usage-fetcher] Pricing fallback applied', { model, resolvedKey: key });
+  }
   const inputCost = (inputTokens / 1000) * pricing.input;
   const outputCost = (outputTokens / 1000) * pricing.output;
-  return inputCost + outputCost;
+  return {
+    amount: inputCost + outputCost,
+    pricingKey: key,
+    fallback,
+  };
 }
 
 function safeNumber(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function decryptKeyMetadata(record: typeof providerKeys.$inferSelect): { organizationId?: string; projectId?: string } {
+  if (!record.encryptedMetadata || !record.metadataIv || !record.metadataAuthTag) {
+    return {};
+  }
+
+  try {
+    const decrypted = decrypt({
+      encryptedText: record.encryptedMetadata,
+      iv: record.metadataIv,
+      authTag: record.metadataAuthTag,
+    });
+    const parsed = JSON.parse(decrypted);
+    return {
+      organizationId: typeof parsed.organizationId === 'string' ? parsed.organizationId : undefined,
+      projectId: typeof parsed.projectId === 'string' ? parsed.projectId : undefined,
+    };
+  } catch (error) {
+    console.error('[usage-fetcher] Failed to decrypt provider metadata', {
+      keyId: record.id,
+      error: error instanceof Error ? error.message : error,
+    });
+    return {};
+  }
+}
+
+function deriveUsageConfigurationForKey(record: typeof providerKeys.$inferSelect): UsageModeConfiguration {
+  const mode = (record.usageMode ?? DEFAULT_USAGE_CONFIGURATION.mode) as OpenAIUsageMode;
+
+  if (mode === 'admin') {
+    const metadata = decryptKeyMetadata(record);
+    const organizationId = metadata.organizationId ?? DEFAULT_USAGE_CONFIGURATION.organizationId;
+    const projectId = metadata.projectId ?? DEFAULT_USAGE_CONFIGURATION.projectId;
+    return { mode, organizationId, projectId };
+  }
+
+  return { mode: 'standard' };
 }
 
 function asDate(epochSeconds?: number, fallback?: Date): Date {
@@ -115,23 +274,36 @@ async function retryFetch(url: string, init: RequestInit, attempts = 3, baseDela
   throw lastError ?? new Error('Unknown fetch error');
 }
 
+function normalizeModelIdentifier(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s]+/g, '-')
+    .replace(/\./g, '-')
+    .replace(/[^a-z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 function extractModelFromOperation(operation: string): string {
-  const parts = operation.split('-');
-  if (parts.length >= 3) {
-    return parts.slice(2).join('-');
-  }
-  return operation;
+  const base = operation.split(':')[0] ?? operation;
+  return normalizeModelIdentifier(base);
 }
 
 function extractModelFromAdminItem(item: OpenAIAdminResultItem): string {
-  const raw = (item.name ?? '').toString().trim().toLowerCase();
-  if (raw.includes('gpt-4o-mini')) return 'gpt-4o-mini';
-  if (raw.includes('gpt-4o')) return 'gpt-4o';
-  if (raw.includes('gpt-4.1')) return 'gpt-4.1';
-  if (raw.includes('gpt-4-turbo') || raw.includes('turbo')) return 'gpt-4-turbo';
-  if (raw.includes('o4-mini')) return 'o4-mini';
-  if (raw.includes('o3')) return 'o3';
-  return raw.length > 0 ? raw : 'unknown';
+  const candidates = [
+    item.name,
+    (item as unknown as { operation?: string }).operation,
+    (item as unknown as { model?: string }).model,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const normalized = normalizeModelIdentifier(String(candidate));
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return 'unknown';
 }
 
 function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date): UsageEventData[] {
@@ -141,7 +313,8 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date
     const tokensOut = safeNumber(item.output_tokens ?? item.completion_tokens ?? item.usage?.completion_tokens ?? 0);
     let cost = safeNumber(item.cost ?? item.amount ?? item.usage?.total_cost ?? 0);
     if (cost <= 0) {
-      cost = calculateCost(model, tokensIn, tokensOut);
+      const { amount } = calculateCost(model, tokensIn, tokensOut);
+      cost = amount;
     }
     return {
       model,
@@ -153,19 +326,19 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date
   });
 }
 
-async function fetchAdminUsage(apiKey: string, startDate: Date, endDate: Date): Promise<UsageEventData[]> {
-  if (!OPENAI_ORGANIZATION) {
-    throw new OpenAIUsageError('OPENAI_ORGANIZATION is required in admin usage mode', 'PROVIDER_ERROR');
-  }
-  if (!OPENAI_PROJECT) {
-    throw new OpenAIUsageError('OPENAI_PROJECT is required in admin usage mode to avoid misattribution', 'PROVIDER_ERROR');
-  }
+async function fetchAdminUsage(
+  apiKey: string,
+  startDate: Date,
+  endDate: Date,
+  config: UsageModeConfiguration
+): Promise<UsageEventData[]> {
+  validateUsageConfiguration(config);
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
-    'OpenAI-Organization': OPENAI_ORGANIZATION,
-    'OpenAI-Project': OPENAI_PROJECT,
+    'OpenAI-Organization': config.organizationId!,
+    'OpenAI-Project': config.projectId!,
   };
 
   const startEpoch = Math.floor(startDate.getTime() / 1000);
@@ -244,21 +417,28 @@ async function fetchStandardUsage(apiKey: string, startDate: Date, endDate: Date
     const model = extractModelFromOperation(usage.operation);
     const inputTokens = usage.n_context_tokens_total || 0;
     const outputTokens = usage.n_generated_tokens_total || 0;
-    const cost = calculateCost(model, inputTokens, outputTokens);
+    const { amount, pricingKey, fallback } = calculateCost(model, inputTokens, outputTokens);
 
     return {
       model,
       tokensIn: inputTokens,
       tokensOut: outputTokens,
-      costEstimate: Number(cost.toFixed(6)),
+      costEstimate: Number(amount.toFixed(6)),
       timestamp: new Date(usage.aggregation_timestamp * 1000),
+      pricingKey,
+      pricingFallback: fallback,
     };
   });
 }
 
-export async function fetchOpenAIUsage(apiKey: string, startDate: Date, endDate: Date): Promise<UsageEventData[]> {
-  if (OPENAI_USAGE_MODE === 'admin') {
-    return fetchAdminUsage(apiKey, startDate, endDate);
+export async function fetchOpenAIUsage(
+  apiKey: string,
+  startDate: Date,
+  endDate: Date,
+  config: UsageModeConfiguration
+): Promise<UsageEventData[]> {
+  if (config.mode === 'admin') {
+    return fetchAdminUsage(apiKey, startDate, endDate, config);
   }
   return fetchStandardUsage(apiKey, startDate, endDate);
 }
@@ -273,31 +453,46 @@ function generateSimulatedUsage(startDate: Date, endDate: Date): UsageEventData[
     const model = models[Math.floor(Math.random() * models.length)];
     const tokensIn = Math.floor(Math.random() * 2000) + 200;
     const tokensOut = Math.floor(Math.random() * 1500) + 100;
-    const cost = calculateCost(model, tokensIn, tokensOut);
+    const { amount, pricingKey, fallback } = calculateCost(model, tokensIn, tokensOut);
     const ts = new Date(startDate.getTime() + Math.random() * duration);
 
     events.push({
       model,
       tokensIn,
       tokensOut,
-      costEstimate: Number(cost.toFixed(6)),
+      costEstimate: Number(amount.toFixed(6)),
       timestamp: ts,
+      pricingKey,
+      pricingFallback: fallback,
     });
   }
 
   return events;
 }
 
-export async function fetchAndStoreUsageForUser(userId: string, daysBack: number = 1): Promise<void> {
+export async function fetchAndStoreUsageForUser(
+  userId: string,
+  daysBack: number = 1
+): Promise<IngestionTelemetry> {
   try {
     const userKeys = await db
       .select()
       .from(providerKeys)
       .where(and(eq(providerKeys.userId, userId), eq(providerKeys.provider, 'openai')));
 
+    const telemetry: IngestionTelemetry = {
+      userId,
+      processedKeys: userKeys.length,
+      simulatedKeys: 0,
+      failedKeys: 0,
+      storedEvents: 0,
+      skippedEvents: 0,
+      issues: [],
+    };
+
     if (userKeys.length === 0) {
-      console.log(`No OpenAI keys found for user ${userId}`);
-      return;
+      console.log(`[usage-fetcher] No OpenAI keys for user`, { userId });
+      return telemetry;
     }
 
     const endDate = new Date();
@@ -311,19 +506,66 @@ export async function fetchAndStoreUsageForUser(userId: string, daysBack: number
           authTag: keyRecord.authTag,
         });
 
+        const usageConfig = deriveUsageConfigurationForKey(keyRecord);
         let usageData: UsageEventData[] = [];
+        let usedSimulation = false;
         try {
-          usageData = await fetchOpenAIUsage(decryptedKey, startDate, endDate);
+          usageData = await fetchOpenAIUsage(decryptedKey, startDate, endDate, usageConfig);
         } catch (error) {
+          if (error instanceof UsageConfigurationError) {
+            telemetry.failedKeys += 1;
+            telemetry.issues.push({
+              keyId: keyRecord.id,
+              message: error.message,
+              code: 'CONFIGURATION_ERROR',
+            });
+            console.error('[usage-fetcher] Missing configuration for admin usage mode', {
+              userId,
+              keyId: keyRecord.id,
+              error: error.message,
+            });
+            continue;
+          }
           if (error instanceof OpenAIUsageError && (error.code === 'SCOPE_MISSING' || error.code === 'UNAUTHORIZED')) {
-            console.warn(`OpenAI reported insufficient permissions for key ${keyRecord.id}; falling back to simulated data.`);
-            usageData = generateSimulatedUsage(startDate, endDate);
+            if (ENABLE_SIMULATED_USAGE) {
+              telemetry.issues.push({
+                keyId: keyRecord.id,
+                message: error.message,
+                code: error.code,
+              });
+              usedSimulation = true;
+              telemetry.simulatedKeys += 1;
+              console.warn(`[usage-fetcher] OpenAI permissions issue; using simulated data`, {
+                userId,
+                keyId: keyRecord.id,
+                code: error.code,
+              });
+              usageData = generateSimulatedUsage(startDate, endDate);
+            } else {
+              console.error(`[usage-fetcher] OpenAI permissions issue; aborting ingestion`, {
+                userId,
+                keyId: keyRecord.id,
+                code: error.code,
+              });
+              throw error;
+            }
           } else {
+            telemetry.failedKeys += 1;
+            telemetry.issues.push({
+              keyId: keyRecord.id,
+              message: error instanceof Error ? error.message : 'Unknown provider error',
+            });
+            console.error(`[usage-fetcher] Unexpected provider failure`, {
+              userId,
+              keyId: keyRecord.id,
+              error: error instanceof Error ? error.message : error,
+            });
             throw error;
           }
         }
 
         let newEventsCount = 0;
+        const fallbackModels = new Set<string>();
         for (const usage of usageData) {
           const existingEvent = await db
             .select()
@@ -347,16 +589,60 @@ export async function fetchAndStoreUsageForUser(userId: string, daysBack: number
               timestamp: usage.timestamp,
             });
             newEventsCount += 1;
+            telemetry.storedEvents += 1;
+          } else {
+            telemetry.skippedEvents += 1;
+          }
+
+          if (usage.pricingFallback) {
+            fallbackModels.add(usage.model);
           }
         }
 
-        console.log(`Stored ${newEventsCount} new usage events for key ${keyRecord.id} (${usageData.length - newEventsCount} duplicates skipped)`);
+        if (usedSimulation) {
+          console.log(`[usage-fetcher] Stored simulated usage events`, {
+            userId,
+            keyId: keyRecord.id,
+            newEvents: newEventsCount,
+          });
+        } else {
+          console.log(`[usage-fetcher] Stored usage events`, {
+            userId,
+            keyId: keyRecord.id,
+            newEvents: newEventsCount,
+            duplicates: usageData.length - newEventsCount,
+          });
+        }
+
+        if (fallbackModels.size > 0) {
+          const models = Array.from(fallbackModels.values()).join(', ');
+          telemetry.issues.push({
+            keyId: keyRecord.id,
+            message: `Pricing fallback applied for models: ${models}`,
+            code: 'PRICING_FALLBACK',
+          });
+        }
       } catch (error) {
-        console.error(`Error processing key ${keyRecord.id}:`, error);
+        telemetry.failedKeys += 1;
+        telemetry.issues.push({
+          keyId: keyRecord.id,
+          message: error instanceof Error ? error.message : 'Unknown ingestion error',
+          code: error instanceof OpenAIUsageError ? error.code : undefined,
+        });
+        console.error(`[usage-fetcher] Error processing key`, {
+          userId,
+          keyId: keyRecord.id,
+          error: error instanceof Error ? error.message : error,
+        });
       }
     }
+
+    return telemetry;
   } catch (error) {
-    console.error('Error in fetchAndStoreUsageForUser:', error);
+    console.error(`[usage-fetcher] Fatal ingestion error`, {
+      userId,
+      error: error instanceof Error ? error.message : error,
+    });
     throw error;
   }
 }

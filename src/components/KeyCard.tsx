@@ -10,6 +10,8 @@ interface ProviderKey {
   provider: string;
   maskedKey?: string;
   createdAt: string;
+  usageMode?: 'standard' | 'admin';
+  hasOrgConfig?: boolean;
 }
 
 interface KeyCardProps {
@@ -57,15 +59,28 @@ export default function KeyCard({ providerKey, onEdit, onDelete }: KeyCardProps)
             {providerKey.provider}
           </CardTitle>
         </div>
-        <Badge variant="outline" className="capitalize">
-          {providerKey.provider}
-        </Badge>
+        <div className="flex gap-2">
+          <Badge variant="outline" className="capitalize">
+            {providerKey.provider}
+          </Badge>
+          <Badge variant={providerKey.usageMode === 'admin' ? 'secondary' : 'outline'} className="capitalize">
+            {providerKey.usageMode === 'admin' ? 'Org mode' : 'Standard'}
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <CardDescription className="font-mono text-sm">
           {providerKey.maskedKey ?? '••••••••'}
         </CardDescription>
-        <p className="text-sm text-muted-foreground">Added on {addedAt}</p>
+        <p className="text-sm text-muted-foreground">
+          Added on {addedAt}
+          {providerKey.usageMode === 'admin' && (
+            <>
+              {' · '}
+              {providerKey.hasOrgConfig ? 'Org & project configured' : 'Org config pending'}
+            </>
+          )}
+        </p>
         <div className="flex gap-3">
           <Button variant="outline" className="flex-1" onClick={() => onEdit(providerKey.id)} disabled={isDeleting}>
             Edit

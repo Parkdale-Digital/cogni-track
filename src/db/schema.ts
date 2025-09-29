@@ -14,6 +14,10 @@ export const providerKeys = pgTable("provider_keys", {
   encryptedKey: text("encrypted_key").notNull(),
   iv: text("iv").notNull(), // Initialization Vector for AES-256-GCM
   authTag: text("auth_tag").notNull(), // Auth Tag for AES-256-GCM
+  usageMode: text("usage_mode").default("standard").notNull(),
+  encryptedMetadata: text("encrypted_metadata"),
+  metadataIv: text("metadata_iv"),
+  metadataAuthTag: text("metadata_auth_tag"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
