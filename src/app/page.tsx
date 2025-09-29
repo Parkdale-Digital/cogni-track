@@ -1,43 +1,54 @@
+import Link from "next/link";
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-16 gap-10">
-      <div className="max-w-3xl text-center space-y-4">
-        <h1 className="text-4xl font-bold text-gray-900">LLM Usage Tracker</h1>
-        <p className="text-lg text-gray-600">
-          Track your LLM API usage and estimated costs across providers with a secure, automated dashboard.
+    <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-6 py-16 lg:px-8">
+      <div className="max-w-3xl space-y-4 text-center">
+        <Badge variant="secondary" className="uppercase tracking-wide text-xs">
+          Unified AI usage dashboard
+        </Badge>
+        <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+          Monitor every API call, token, and dollar from a single workspace.
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          Securely connect your OpenAI keys, automatically ingest usage, and surface spend trends across models—all without juggling multiple provider consoles.
         </p>
       </div>
 
       <SignedOut>
-        <div className="flex flex-wrap items-center justify-center gap-4">
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
           <SignInButton>
-            <button className="px-6 py-3 rounded-md bg-indigo-600 text-white text-sm font-medium shadow-sm hover:bg-indigo-700 transition-colors">
-              Sign in
-            </button>
+            <Button size="lg">Sign in</Button>
           </SignInButton>
           <SignUpButton>
-            <button className="px-6 py-3 rounded-md border border-indigo-600 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition-colors">
+            <Button size="lg" variant="outline">
               Create an account
-            </button>
+            </Button>
           </SignUpButton>
         </div>
       </SignedOut>
 
       <SignedIn>
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-gray-600">You’re signed in—head to your dashboard to manage keys and view analytics.</p>
-          <div className="flex items-center gap-4">
-            <a
-              href="/dashboard"
-              className="px-6 py-3 rounded-md bg-indigo-600 text-white text-sm font-medium shadow-sm hover:bg-indigo-700 transition-colors"
-            >
-              Go to dashboard
-            </a>
-            <UserButton afterSignOutUrl="/" />
-          </div>
-        </div>
+        <Card className="mt-10 w-full max-w-xl">
+          <CardContent className="flex flex-col items-center gap-4 py-6 text-center sm:flex-row sm:justify-between sm:text-left">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">You’re all set.</p>
+              <p className="text-sm text-muted-foreground">
+                Head to your dashboard to review usage or manage provider keys.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button asChild size="lg">
+                <Link href="/dashboard">Go to dashboard</Link>
+              </Button>
+              <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "h-10 w-10" } }} />
+            </div>
+          </CardContent>
+        </Card>
       </SignedIn>
     </main>
   );

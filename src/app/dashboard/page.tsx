@@ -1,11 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useUser } from '@clerk/nextjs';
+import React, { useEffect, useState } from 'react';
+import { SignedIn, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import KeyCard from '../../components/KeyCard';
-import AddKeyForm from '../../components/AddKeyForm';
-import EditKeyForm from '../../components/EditKeyForm';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
+import KeyCard from '@/components/KeyCard';
+import AddKeyForm from '@/components/AddKeyForm';
+import EditKeyForm from '@/components/EditKeyForm';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ProviderKey {
   id: number;
@@ -22,20 +26,18 @@ export default function DashboardPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingKey, setEditingKey] = useState<ProviderKey | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditingState] = useState(false);
   const [error, setError] = useState('');
 
-  // Redirect if not authenticated
   useEffect(() => {
     if (isLoaded && !user) {
       router.push('/sign-in');
     }
   }, [isLoaded, user, router]);
 
-  // Load API keys on component mount
   useEffect(() => {
     if (user) {
-      loadKeys();
+      void loadKeys();
     }
   }, [user]);
 
@@ -62,9 +64,7 @@ export default function DashboardPage() {
       setIsAdding(true);
       const response = await fetch('/api/keys', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, apiKey }),
       });
 
@@ -73,33 +73,28 @@ export default function DashboardPage() {
         throw new Error(errorData.error || 'Failed to add API key');
       }
 
-      // Reload keys and hide form
       await loadKeys();
       setShowAddForm(false);
       setError('');
-    } catch (err) {
-      throw err; // Re-throw to be handled by AddKeyForm
     } finally {
       setIsAdding(false);
     }
   };
 
-  const handleEditKey = async (keyId: number) => {
-    const keyToEdit = keys.find(key => key.id === keyId);
+  const handleEditKey = (keyId: number) => {
+    const keyToEdit = keys.find((key) => key.id === keyId);
     if (keyToEdit) {
       setEditingKey(keyToEdit);
-      setShowAddForm(false); // Close add form if open
+      setShowAddForm(false);
     }
   };
 
   const handleUpdateKey = async (keyId: number, apiKey: string) => {
     try {
-      setIsEditing(true);
+      setIsEditingState(true);
       const response = await fetch(`/api/keys/${keyId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey }),
       });
 
@@ -108,29 +103,21 @@ export default function DashboardPage() {
         throw new Error(errorData.error || 'Failed to update API key');
       }
 
-      // Reload keys and close edit form
       await loadKeys();
       setEditingKey(null);
       setError('');
-    } catch (err) {
-      throw err; // Re-throw to be handled by EditKeyForm
     } finally {
-      setIsEditing(false);
+      setIsEditingState(false);
     }
   };
 
   const handleDeleteKey = async (keyId: number) => {
     try {
-      const response = await fetch(`/api/keys/${keyId}`, {
-        method: 'DELETE',
-      });
-
+      const response = await fetch(`/api/keys/${keyId}`, { method: 'DELETE' });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete API key');
       }
-
-      // Reload keys
       await loadKeys();
       setError('');
     } catch (err) {
@@ -141,176 +128,80 @@ export default function DashboardPage() {
 
   if (!isLoaded) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '100vh' 
-      }}>
-        <div>Loading...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <Skeleton className="h-10 w-10 rounded-full" />
       </div>
     );
   }
 
   if (!user) {
-    return null; // Will redirect to sign-in
+    return null;
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      backgroundColor: '#f9fafb',
-      padding: '2rem 0'
-    }}>
-      <div className="container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 1rem' }}>
-        {/* Header */}
-        <header style={{ 
-          marginBottom: '3rem', 
-          textAlign: 'center' 
-        }}>
-          <h1 style={{ 
-            fontSize: '2.5rem', 
-            fontWeight: 700, 
-            color: '#111827',
-            margin: '0 0 1rem 0'
-          }}>
-            LLM API Usage Tracker
-          </h1>
-          <p style={{ 
-            fontSize: '1.125rem', 
-            color: '#6b7280',
-            margin: 0
-          }}>
-            Welcome back, {user.firstName || user.emailAddresses[0]?.emailAddress}! 
-            Manage your API keys and track usage.
+    <SignedIn>
+      <div className="container space-y-10 py-10">
+        <header className="space-y-2 text-center sm:text-left">
+          <h1 className="text-3xl font-semibold tracking-tight">Welcome back{user.firstName ? `, ${user.firstName}` : ''}.</h1>
+          <p className="text-muted-foreground">
+            Manage provider keys, trigger usage refreshes, and monitor token spend in one place.
           </p>
         </header>
 
-        {/* Error Display */}
         {error && (
-          <div style={{
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#dc2626',
-            padding: '1rem',
-            borderRadius: '8px',
-            fontSize: '0.875rem',
-            marginBottom: '2rem',
-          }}>
-            {error}
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        {/* Add Key Form */}
-        {showAddForm && (
-          <AddKeyForm
-            onAddKey={handleAddKey}
-            onCancel={() => setShowAddForm(false)}
-            isLoading={isAdding}
-          />
-        )}
-
-        {/* Edit Key Form */}
-        {editingKey && (
-          <EditKeyForm
-            keyId={editingKey.id}
-            currentProvider={editingKey.provider}
-            onUpdateKey={handleUpdateKey}
-            onCancel={() => setEditingKey(null)}
-            isLoading={isEditing}
-          />
-        )}
-
-        {/* API Keys Section */}
-        <section>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: '2rem'
-          }}>
-            <h2 style={{ 
-              fontSize: '1.875rem', 
-              fontWeight: 600, 
-              color: '#111827',
-              margin: 0
-            }}>
-              Your API Keys
-            </h2>
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-medium">API keys</h2>
+              <p className="text-sm text-muted-foreground">
+                Encrypt and manage the provider credentials we use to fetch usage data.
+              </p>
+            </div>
             {!showAddForm && !editingKey && (
-              <button
-                onClick={() => setShowAddForm(true)}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  background: '#3b82f6',
-                  color: 'white',
-                  transition: 'background-color 0.2s ease',
-                }}
-                onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}
-                onMouseOut={(e) => e.currentTarget.style.background = '#3b82f6'}
-              >
-                + Add API Key
-              </button>
+              <Button onClick={() => setShowAddForm(true)}>Add key</Button>
             )}
           </div>
 
-          {/* Keys Display */}
+          {showAddForm && (
+            <AddKeyForm
+              onAddKey={handleAddKey}
+              onCancel={() => setShowAddForm(false)}
+              isLoading={isAdding}
+            />
+          )}
+
+          {editingKey && (
+            <EditKeyForm
+              keyId={editingKey.id}
+              currentProvider={editingKey.provider}
+              onUpdateKey={handleUpdateKey}
+              onCancel={() => setEditingKey(null)}
+              isLoading={isEditing}
+            />
+          )}
+
           {isLoading ? (
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '3rem',
-              color: '#6b7280'
-            }}>
-              Loading your API keys...
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {[...Array(3)].map((_, index) => (
+                <Skeleton key={index} className="h-48 rounded-xl" />
+              ))}
             </div>
           ) : keys.length === 0 ? (
-            <div style={{
-              textAlign: 'center',
-              padding: '3rem',
-              background: 'white',
-              border: '1px solid #e1e5e9',
-              borderRadius: '8px',
-              color: '#6b7280'
-            }}>
-              <h3 style={{ 
-                fontSize: '1.25rem', 
-                marginBottom: '1rem',
-                color: '#374151'
-              }}>
-                No API Keys Yet
-              </h3>
-              <p style={{ marginBottom: '2rem' }}>
-                Add your first LLM provider API key to start tracking usage.
-              </p>
-              {!showAddForm && !editingKey && (
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    borderRadius: '8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    background: '#3b82f6',
-                    color: 'white',
-                  }}
-                >
-                  Add Your First API Key
-                </button>
-              )}
-            </div>
+            <Card className="bg-muted/40">
+              <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No provider keys yet. Add your first key to start tracking usage.
+                </p>
+                <Button onClick={() => setShowAddForm(true)}>Add your first key</Button>
+              </CardContent>
+            </Card>
           ) : (
-            <div style={{
-              display: 'grid',
-              gap: '1.5rem',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))'
-            }}>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {keys.map((key) => (
                 <KeyCard
                   key={key.id}
@@ -322,40 +213,7 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
-
-        {/* Usage Analytics Placeholder */}
-        {keys.length > 0 && (
-          <section style={{ marginTop: '4rem' }}>
-            <h2 style={{ 
-              fontSize: '1.875rem', 
-              fontWeight: 600, 
-              color: '#111827',
-              margin: '0 0 2rem 0'
-            }}>
-              Usage Analytics
-            </h2>
-            <div style={{
-              background: 'white',
-              border: '1px solid #e1e5e9',
-              borderRadius: '8px',
-              padding: '3rem',
-              textAlign: 'center',
-              color: '#6b7280'
-            }}>
-              <h3 style={{ 
-                fontSize: '1.25rem', 
-                marginBottom: '1rem',
-                color: '#374151'
-              }}>
-                Coming Soon
-              </h3>
-              <p>
-                Usage analytics and cost tracking will be available in Day 3-5 of development.
-              </p>
-            </div>
-          </section>
-        )}
       </div>
-    </div>
+    </SignedIn>
   );
 }

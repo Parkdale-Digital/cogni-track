@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface ProviderKey {
   id: number;
@@ -15,14 +18,18 @@ interface KeyCardProps {
   onDelete: (id: number) => void;
 }
 
+const providerIcons: Record<string, string> = {
+  openai: '🤖',
+  anthropic: '🧠',
+  google: '🔍',
+  cohere: '💫',
+};
+
 export default function KeyCard({ providerKey, onEdit, onDelete }: KeyCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this API key? This action cannot be undone.')) {
-      return;
-    }
-
+    if (!confirm('Delete this API key?')) return;
     setIsDeleting(true);
     try {
       await onDelete(providerKey.id);
@@ -31,130 +38,48 @@ export default function KeyCard({ providerKey, onEdit, onDelete }: KeyCardProps)
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  const addedAt = new Date(providerKey.createdAt).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 
-  const getProviderIcon = (provider: string) => {
-    switch (provider.toLowerCase()) {
-      case 'openai':
-        return '🤖';
-      case 'anthropic':
-        return '🧠';
-      case 'google':
-        return '🔍';
-      case 'cohere':
-        return '💫';
-      default:
-        return '🔑';
-    }
-  };
+  const icon = providerIcons[providerKey.provider.toLowerCase()] ?? '🔑';
 
   return (
-    <div
-      style={{
-        border: '1px solid #e1e5e9',
-        borderRadius: '8px',
-        padding: '1.5rem',
-        background: 'white',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-        transition: 'box-shadow 0.2s ease',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1rem',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-          }}
-        >
-          <span style={{ fontSize: '1.5rem' }}>
-            {getProviderIcon(providerKey.provider)}
+    <Card className="h-full shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl" aria-hidden>
+            {icon}
           </span>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: '1.25rem',
-              fontWeight: 600,
-              color: '#374151',
-            }}
-          >
-            {providerKey.provider.toUpperCase()}
-          </h3>
+          <CardTitle className="text-lg capitalize">
+            {providerKey.provider}
+          </CardTitle>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => onEdit(providerKey.id)}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '4px',
-              border: '1px solid #d1d5db',
-              cursor: isDeleting ? 'not-allowed' : 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              background: 'white',
-              color: '#374151',
-              opacity: isDeleting ? 0.5 : 1,
-            }}
-            disabled={isDeleting}
-          >
+        <Badge variant="outline" className="capitalize">
+          {providerKey.provider}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <CardDescription className="font-mono text-sm">
+          {providerKey.maskedKey ?? '••••••••'}
+        </CardDescription>
+        <p className="text-sm text-muted-foreground">Added on {addedAt}</p>
+        <div className="flex gap-3">
+          <Button variant="outline" className="flex-1" onClick={() => onEdit(providerKey.id)} disabled={isDeleting}>
             Edit
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="destructive"
+            className="flex-1"
             onClick={handleDelete}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '4px',
-              border: '1px solid #ef4444',
-              cursor: isDeleting ? 'not-allowed' : 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-              background: '#ef4444',
-              color: 'white',
-              opacity: isDeleting ? 0.5 : 1,
-            }}
             disabled={isDeleting}
           >
-            {isDeleting ? 'Deleting...' : 'Delete'}
-          </button>
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
         </div>
-      </div>
-      <div
-        style={{
-          fontSize: '0.875rem',
-          color: '#6b7280',
-        }}
-      >
-        {providerKey.maskedKey && (
-          <p
-            style={{
-              margin: '0 0 0.5rem 0',
-              fontFamily: 'monospace',
-              background: '#f3f4f6',
-              padding: '0.25rem 0.5rem',
-              borderRadius: '4px',
-              display: 'inline-block',
-            }}
-          >
-            Key: {providerKey.maskedKey}
-          </p>
-        )}
-        <p style={{ margin: 0 }}>
-          Added: {formatDate(providerKey.createdAt)}
-        </p>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
