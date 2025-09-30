@@ -12,7 +12,7 @@
             "value": 12.34,
             "currency": "usd"
           },
-          "project_id": "proj_fixture_theta",
+          "project_id": "proj_abc123",
           "line_item": "usage.completions"
         },
         {
@@ -25,8 +25,24 @@
           "line_item": "usage.images"
         }
       ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1730505600,
+      "end_time": 1730592000,
+      "results": [
+        {
+          "object": "organization.costs.result",
+          "amount": {
+            "value": 5.67,
+            "currency": "usd"
+          },
+          "project_id": "proj_xyz890",
+          "line_item": "usage.audio"
+        }
+      ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/costs?page=token_fixture_page2"
 }

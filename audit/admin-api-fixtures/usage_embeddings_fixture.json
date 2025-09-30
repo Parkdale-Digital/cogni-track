@@ -10,7 +10,7 @@
           "object": "organization.usage.embeddings.result",
           "input_tokens": 2048,
           "num_model_requests": 3,
-          "project_id": "proj_fixture_alpha",
+          "project_id": "proj_abc123",
           "user_id": "user_fixture_alpha",
           "api_key_id": "key_fixture_alpha",
           "model": "text-embedding-3-small"
@@ -27,6 +27,6 @@
       ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/usage/embeddings?page=token_fixture_page2"
 }

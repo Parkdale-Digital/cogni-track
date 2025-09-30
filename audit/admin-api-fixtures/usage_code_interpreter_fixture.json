@@ -9,11 +9,23 @@
         {
           "object": "organization.usage.code_interpreter_sessions.result",
           "num_sessions": 6,
-          "project_id": "proj_fixture_eta"
+          "project_id": "proj_abc123"
+        }
+      ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1730505600,
+      "end_time": 1730592000,
+      "results": [
+        {
+          "object": "organization.usage.code_interpreter_sessions.result",
+          "num_sessions": 3,
+          "project_id": "proj_xyz890"
         }
       ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/usage/code_interpreter_sessions?page=token_fixture_page2"
 }

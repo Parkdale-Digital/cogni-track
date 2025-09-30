@@ -15,3 +15,4 @@
 2025-09-30 – Elevated migration pre-check evidence with deterministic exports, duplicate spike runs, and checksum verification.
 2025-09-30 – Added OpenAI admin tables to Drizzle schema and relations to align with migration draft.
 2025-09-30 – Updated src/db/schema.ts with OpenAI admin tables and recorded migration diff parity.
+2025-09-30 – Logged ingestion readiness gaps (fixture ID drift, pagination coverage, rate limiting) and captured remediation plan in `memorybank/ingestion_readiness_report.md`.

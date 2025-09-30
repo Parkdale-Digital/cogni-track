@@ -10,14 +10,30 @@
           "object": "organization.usage.audio_transcriptions.result",
           "seconds": 780,
           "num_model_requests": 5,
-          "project_id": "proj_fixture_epsilon",
+          "project_id": "proj_abc123",
           "user_id": "user_fixture_epsilon",
           "api_key_id": "key_fixture_epsilon",
           "model": "gpt-4o-transcribe"
         }
       ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1730505600,
+      "end_time": 1730592000,
+      "results": [
+        {
+          "object": "organization.usage.audio_transcriptions.result",
+          "seconds": 240,
+          "num_model_requests": 1,
+          "project_id": "proj_xyz890",
+          "user_id": "user_fixture_theta",
+          "api_key_id": "key_fixture_theta",
+          "model": "gpt-4o-transcribe"
+        }
+      ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/usage/audio_transcriptions?page=token_fixture_page2"
 }

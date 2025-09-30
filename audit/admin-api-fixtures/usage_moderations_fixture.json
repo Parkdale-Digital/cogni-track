@@ -10,14 +10,30 @@
           "object": "organization.usage.moderations.result",
           "input_tokens": 128,
           "num_model_requests": 2,
-          "project_id": "proj_fixture_beta",
+          "project_id": "proj_xyz890",
           "user_id": "user_fixture_beta",
           "api_key_id": "key_fixture_beta",
           "model": "text-moderation-007"
         }
       ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1730505600,
+      "end_time": 1730592000,
+      "results": [
+        {
+          "object": "organization.usage.moderations.result",
+          "input_tokens": 64,
+          "num_model_requests": 1,
+          "project_id": "proj_abc123",
+          "user_id": "user_fixture_gamma",
+          "api_key_id": "key_fixture_gamma",
+          "model": "text-moderation-007"
+        }
+      ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/usage/moderations?page=token_fixture_page2"
 }

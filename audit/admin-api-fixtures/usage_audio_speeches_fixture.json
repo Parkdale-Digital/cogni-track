@@ -10,14 +10,30 @@
           "object": "organization.usage.audio_speeches.result",
           "characters": 3500,
           "num_model_requests": 3,
-          "project_id": "proj_fixture_delta",
+          "project_id": "proj_xyz890",
           "user_id": "user_fixture_delta",
           "api_key_id": "key_fixture_delta",
           "model": "gpt-4o-mini-tts"
         }
       ]
+    },
+    {
+      "object": "bucket",
+      "start_time": 1730505600,
+      "end_time": 1730592000,
+      "results": [
+        {
+          "object": "organization.usage.audio_speeches.result",
+          "characters": 1200,
+          "num_model_requests": 1,
+          "project_id": "proj_abc123",
+          "user_id": "user_fixture_eta",
+          "api_key_id": "key_fixture_eta",
+          "model": "gpt-4o-mini-tts"
+        }
+      ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/usage/audio_speeches?page=token_fixture_page2"
 }
