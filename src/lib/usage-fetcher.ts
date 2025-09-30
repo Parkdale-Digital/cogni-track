@@ -365,7 +365,23 @@ async function fetchAdminUsage(
     const json: OpenAIAdminUsageResponse = await response.json();
     pages.push(json);
     if (json.has_more && json.next_page) {
-      current = new URL(json.next_page);
+      try {
+        const nextUrl = new URL(json.next_page, current);
+        if (nextUrl.protocol !== 'https:' || nextUrl.hostname !== 'api.openai.com') {
+          console.error('[usage-fetcher] Aborting pagination due to unexpected host in next_page', {
+            nextPage: json.next_page,
+            resolved: nextUrl.toString(),
+          });
+          break;
+        }
+        current = nextUrl;
+      } catch (error) {
+        console.error('[usage-fetcher] Failed to parse next_page URL', {
+          nextPage: json.next_page,
+          error,
+        });
+        break;
+      }
     } else {
       break;
     }
