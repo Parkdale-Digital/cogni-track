@@ -1,11 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { fetchAndStoreUsageForUser } from '../../../../lib/usage-fetcher';
 
 export async function GET(request: NextRequest) {
   try {
     // Verify this is a legitimate cron request
+    const expectedSecret = process.env.CRON_SECRET;
+    if (!expectedSecret) {
+      console.error('CRON_SECRET is not configured. Rejecting cron request.');
+      return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+    }
+
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    const provided = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : undefined;
+
+    if (!provided) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const expectedBuffer = Buffer.from(expectedSecret);
+    const providedBuffer = Buffer.from(provided);
+    if (
+      expectedBuffer.length !== providedBuffer.length ||
+      !timingSafeEqual(expectedBuffer, providedBuffer)
+    ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -22,7 +42,7 @@ export async function GET(request: NextRequest) {
 
     let successCount = 0;
     let errorCount = 0;
-    const warnings: Array<{ userId: string; issues: number }> = [];
+    let warningCount = 0;
 
     // Process each user
     for (const user of allUsers) {
@@ -30,8 +50,8 @@ export async function GET(request: NextRequest) {
         const telemetry = await fetchAndStoreUsageForUser(user.id, 1); // Fetch last 1 day
         successCount++;
         if (telemetry.issues.length > 0) {
-          warnings.push({ userId: user.id, issues: telemetry.issues.length });
-          console.warn('Usage ingestion completed with issues', telemetry);
+          warningCount += 1;
+          console.warn('Usage ingestion completed with issues', { userId: user.id, telemetry });
         } else {
           console.log(`Successfully processed user ${user.id}`);
         }
@@ -46,7 +66,7 @@ export async function GET(request: NextRequest) {
       processed: allUsers.length,
       successful: successCount,
       errors: errorCount,
-      warnings,
+      warningCount,
       timestamp: new Date().toISOString(),
     };
 
