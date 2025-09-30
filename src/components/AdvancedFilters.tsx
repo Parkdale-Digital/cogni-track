@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useId } from 'react';
+
+import { cn } from '@/lib/utils';
 
 interface FilterOptions {
   dateRange: {
@@ -19,17 +21,19 @@ interface AdvancedFiltersProps {
   className?: string;
 }
 
-export default function AdvancedFilters({ 
+export default function AdvancedFilters({
   filters,
-  onFiltersChange, 
-  availableProviders, 
-  availableModels, 
-  className 
+  onFiltersChange,
+  availableProviders,
+  availableModels,
+  className
 }: AdvancedFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [draftFilters, setDraftFilters] = useState<FilterOptions>(filters);
   const [actionStatus, setActionStatus] = useState<'idle' | 'applied' | 'cleared'>('idle');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const panelId = useId();
+  const headingId = `${panelId}-heading`;
 
   useEffect(() => {
     setDraftFilters(filters);
@@ -141,144 +145,165 @@ export default function AdvancedFilters({
     setLastUpdatedAt(Date.now());
   };
 
-  const activeFiltersCount = 
+  const activeFiltersCount =
     (filters.dateRange.start ? 1 : 0) +
     (filters.dateRange.end ? 1 : 0) +
     filters.providers.length +
     filters.models.length;
 
+  const chipBaseClasses =
+    'rounded-full border px-3 py-1 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+
   return (
-    <div className={`bg-white rounded-lg border border-gray-200 ${className || ''}`}>
-      <div 
-        className="p-4 cursor-pointer flex justify-between items-center hover:bg-gray-50"
+    <div className={cn('rounded-lg border border-border bg-card shadow-sm', className)}>
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-controls={panelId}
+        id={headingId}
         onClick={() => setIsExpanded(!isExpanded)}
+        className="flex w-full items-center justify-between gap-3 rounded-t-lg px-4 py-4 text-left transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <div className="flex items-center gap-2">
-          <h3 className="text-lg font-medium text-gray-800">Advanced Filters</h3>
+          <h3 className="text-lg font-medium">Advanced filters</h3>
           {activeFiltersCount > 0 && (
-            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+            <span className="inline-flex items-center rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
               {activeFiltersCount} active
             </span>
           )}
         </div>
-        <svg 
-          className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-          fill="none" 
-          stroke="currentColor" 
+        <svg
+          className={cn('h-5 w-5 text-muted-foreground transition-transform', isExpanded && 'rotate-180')}
+          fill="none"
+          stroke="currentColor"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
-      </div>
+      </button>
 
-      {isExpanded && (
-        <div className="border-t border-gray-200 p-4 space-y-6">
-          {/* Date Range */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Date Range
-            </label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">From</label>
-                <input
-                  type="date"
-                  value={draftFilters.dateRange.start}
-                  onChange={(e) => handleDateChange('start', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">To</label>
-                <input
-                  type="date"
-                  value={draftFilters.dateRange.end}
-                  onChange={(e) => handleDateChange('end', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+      <div
+        id={panelId}
+        role="region"
+        aria-labelledby={headingId}
+        hidden={!isExpanded}
+        className="border-t border-border px-4 py-5"
+      >
+        {/* Date Range */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Date range</label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs text-muted-foreground">From</label>
+              <input
+                type="date"
+                value={draftFilters.dateRange.start}
+                onChange={(e) => handleDateChange('start', e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs text-muted-foreground">To</label>
+              <input
+                type="date"
+                value={draftFilters.dateRange.end}
+                onChange={(e) => handleDateChange('end', e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
           </div>
+        </div>
 
-          {/* Providers */}
-          {availableProviders.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Providers
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {availableProviders.map(provider => (
+        {/* Providers */}
+        {availableProviders.length > 0 && (
+          <div className="mt-6 space-y-2">
+            <label className="text-sm font-medium">Providers</label>
+            <div className="flex flex-wrap gap-2">
+              {availableProviders.map(provider => {
+                const isActive = draftFilters.providers.includes(provider);
+
+                return (
                   <button
                     key={provider}
+                    type="button"
                     onClick={() => handleProviderToggle(provider)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      draftFilters.providers.includes(provider)
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    aria-pressed={isActive}
+                    className={cn(
+                      chipBaseClasses,
+                      isActive
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-transparent bg-muted text-muted-foreground hover:bg-muted/80'
+                    )}
                   >
                     {provider.charAt(0).toUpperCase() + provider.slice(1)}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Models */}
-          {availableModels.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Models
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {availableModels.slice(0, 10).map(model => (
+        {/* Models */}
+        {availableModels.length > 0 && (
+          <div className="mt-6 space-y-2">
+            <label className="text-sm font-medium">Models</label>
+            <div className="flex flex-wrap gap-2">
+              {availableModels.slice(0, 10).map(model => {
+                const isActive = draftFilters.models.includes(model);
+
+                return (
                   <button
                     key={model}
+                    type="button"
                     onClick={() => handleModelToggle(model)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      draftFilters.models.includes(model)
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    aria-pressed={isActive}
+                    className={cn(
+                      chipBaseClasses,
+                      isActive
+                        ? 'border-accent bg-accent text-accent-foreground'
+                        : 'border-transparent bg-muted text-muted-foreground hover:bg-muted/80'
+                    )}
                   >
                     {model}
                   </button>
-                ))}
-                {availableModels.length > 10 && (
-                  <span className="px-3 py-1 text-sm text-gray-500">
-                    +{availableModels.length - 10} more
-                  </span>
-                )}
-              </div>
+                );
+              })}
+              {availableModels.length > 10 && (
+                <span className="px-3 py-1 text-sm text-muted-foreground">
+                  +{availableModels.length - 10} more
+                </span>
+              )}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Clear Filters */}
-          <div className="pt-4 border-t border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 border-t border-border pt-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             {activeFiltersCount > 0 ? (
               <button
+                type="button"
                 onClick={clearAllFilters}
-                className="text-sm text-gray-600 hover:text-gray-800 underline text-left"
+                className="text-sm font-medium text-muted-foreground underline-offset-4 transition hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 Clear all filters
               </button>
             ) : (
-              <span className="text-sm text-gray-400">No filters selected</span>
+              <span className="text-sm text-muted-foreground">No filters selected</span>
             )}
-            <div className="flex flex-col sm:items-end gap-2">
+            <div className="flex flex-col gap-2 sm:items-end">
               <button
                 type="button"
                 onClick={applyFilters}
                 disabled={!hasPendingChanges}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  hasPendingChanges
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }`}
+                className={cn(
+                  'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50',
+                  hasPendingChanges ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-muted text-muted-foreground'
+                )}
               >
                 Apply filters
               </button>
-              <div className="min-h-[1.25rem] text-xs text-gray-500">
+              <div className="min-h-[1.25rem] text-xs text-muted-foreground">
                 {actionStatus === 'applied' && <span>Filters updated ✓</span>}
                 {actionStatus === 'cleared' && <span>Filters cleared</span>}
                 {actionStatus === 'idle' && !hasPendingChanges && activeFiltersCount > 0 && (
@@ -288,7 +313,7 @@ export default function AdvancedFilters({
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

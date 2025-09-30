@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface UsageDataPoint {
   date: string;
@@ -17,15 +17,13 @@ interface UsageChartProps {
 export default function UsageChart({ data, type }: UsageChartProps) {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
     });
   };
 
-  const formatCost = (value: number) => {
-    return `$${value.toFixed(4)}`;
-  };
+  const formatCost = (value: number) => `$${value.toFixed(4)}`;
 
   const formatTokens = (value: number) => {
     if (value >= 1000000) {
@@ -36,44 +34,49 @@ export default function UsageChart({ data, type }: UsageChartProps) {
     return value.toString();
   };
 
+  const strokeColor = type === 'tokens' ? 'hsl(var(--primary))' : 'hsl(var(--accent))';
+
   return (
-    <div className="w-full h-80 bg-white rounded-lg border border-gray-200 p-4">
-      <h3 className="text-lg font-semibold mb-4 text-gray-800">
-        {type === 'tokens' ? 'Token Usage Over Time' : 'Cost Trends Over Time'}
+    <div className="h-80 rounded-lg border border-border bg-card p-6 shadow-sm">
+      <h3 className="text-lg font-semibold text-foreground">
+        {type === 'tokens' ? 'Token usage over time' : 'Cost trends over time'}
       </h3>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis 
-            dataKey="date" 
+        <LineChart data={data} margin={{ top: 24, right: 16, left: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+          <XAxis
+            dataKey="date"
             tickFormatter={formatDate}
-            stroke="#666"
+            stroke="hsl(var(--muted-foreground))"
             fontSize={12}
+            tickMargin={12}
           />
-          <YAxis 
+          <YAxis
             tickFormatter={type === 'tokens' ? formatTokens : formatCost}
-            stroke="#666"
+            stroke="hsl(var(--muted-foreground))"
             fontSize={12}
+            width={80}
           />
-          <Tooltip 
+          <Tooltip
             labelFormatter={(value) => formatDate(value as string)}
             formatter={(value: number) => [
               type === 'tokens' ? `${value.toLocaleString()} tokens` : formatCost(value),
               type === 'tokens' ? 'Tokens' : 'Cost'
             ]}
             contentStyle={{
-              backgroundColor: '#fff',
-              border: '1px solid #ccc',
-              borderRadius: '4px'
+              backgroundColor: 'hsl(var(--popover))',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 'var(--radius, 0.75rem)',
+              color: 'hsl(var(--popover-foreground))',
+              boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12)'
             }}
           />
-          <Legend />
-          <Line 
-            type="monotone" 
-            dataKey={type} 
-            stroke={type === 'tokens' ? '#3b82f6' : '#10b981'}
-            strokeWidth={2}
-            dot={{ fill: type === 'tokens' ? '#3b82f6' : '#10b981', strokeWidth: 2, r: 4 }}
+          <Line
+            type="monotone"
+            dataKey={type}
+            stroke={strokeColor}
+            strokeWidth={2.5}
+            dot={{ r: 4, fill: strokeColor, stroke: 'hsl(var(--background))', strokeWidth: 2 }}
             activeDot={{ r: 6 }}
             name={type === 'tokens' ? 'Tokens' : 'Cost ($)'}
           />

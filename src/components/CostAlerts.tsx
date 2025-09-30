@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 
+import { cn } from '@/lib/utils';
+
 interface UsageEvent {
   id: number;
   model: string;
@@ -12,7 +14,7 @@ interface UsageEvent {
   provider: string;
 }
 
-interface AlertThreshold {
+export interface AlertThreshold {
   id: string;
   type: 'daily' | 'weekly' | 'monthly';
   amount: number;
@@ -24,6 +26,71 @@ interface CostAlertsProps {
   className?: string;
 }
 
+const STATUS_STYLES: Record<'safe' | 'warning' | 'danger', { badge: string; border: string; bar: string; text: string }> = {
+  safe: {
+    badge: 'bg-muted text-muted-foreground',
+    border: 'border-border bg-muted/30',
+    bar: 'bg-primary',
+    text: 'text-muted-foreground'
+  },
+  warning: {
+    badge: 'bg-amber-100 text-amber-900',
+    border: 'border-amber-200 bg-amber-50',
+    bar: 'bg-amber-500',
+    text: 'text-amber-800'
+  },
+  danger: {
+    badge: 'bg-destructive/20 text-destructive',
+    border: 'border-destructive/40 bg-destructive/10',
+    bar: 'bg-destructive',
+    text: 'text-destructive'
+  }
+};
+
+export interface AlertStatusSummary {
+  status: 'safe' | 'warning' | 'danger';
+  percentage: number;
+  message: string;
+}
+
+export function evaluateAlertStatus(threshold: AlertThreshold, usage: number): AlertStatusSummary {
+  if (!threshold.enabled) {
+    return { status: 'safe', percentage: 0, message: 'Alert disabled' };
+  }
+
+  if (threshold.amount <= 0) {
+    return {
+      status: 'safe',
+      percentage: 0,
+      message: 'Set a budget above $0 to enable alerts.'
+    };
+  }
+
+  const percentage = Number.isFinite(usage) ? (usage / threshold.amount) * 100 : 0;
+
+  if (percentage >= 100) {
+    return {
+      status: 'danger',
+      percentage,
+      message: `Budget exceeded by $${Math.max(usage - threshold.amount, 0).toFixed(2)}`
+    };
+  }
+
+  if (percentage >= 80) {
+    return {
+      status: 'warning',
+      percentage,
+      message: `${Math.max(100 - percentage, 0).toFixed(0)}% budget remaining`
+    };
+  }
+
+  return {
+    status: 'safe',
+    percentage,
+    message: `${Math.max(100 - percentage, 0).toFixed(0)}% budget remaining`
+  };
+}
+
 export default function CostAlerts({ events, className }: CostAlertsProps) {
   const [thresholds, setThresholds] = useState<AlertThreshold[]>([
     { id: 'daily', type: 'daily', amount: 10, enabled: true },
@@ -32,7 +99,6 @@ export default function CostAlerts({ events, className }: CostAlertsProps) {
   ]);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Calculate current usage for different periods
   const calculatePeriodUsage = (type: 'daily' | 'weekly' | 'monthly'): number => {
     const now = new Date();
     let startDate: Date;
@@ -68,46 +134,12 @@ export default function CostAlerts({ events, className }: CostAlertsProps) {
     }
   };
 
-  const getAlertStatus = (threshold: AlertThreshold): {
-    status: 'safe' | 'warning' | 'danger';
-    percentage: number;
-    message: string;
-  } => {
-    if (!threshold.enabled) {
-      return { status: 'safe', percentage: 0, message: 'Alert disabled' };
-    }
-
-    const usage = getUsageForThreshold(threshold);
-    const percentage = (usage / threshold.amount) * 100;
-
-    if (percentage >= 100) {
-      return {
-        status: 'danger',
-        percentage,
-        message: `Budget exceeded by $${(usage - threshold.amount).toFixed(2)}`
-      };
-    } else if (percentage >= 80) {
-      return {
-        status: 'warning',
-        percentage,
-        message: `${(100 - percentage).toFixed(0)}% budget remaining`
-      };
-    } else {
-      return {
-        status: 'safe',
-        percentage,
-        message: `${(100 - percentage).toFixed(0)}% budget remaining`
-      };
-    }
-  };
-
   const updateThreshold = (id: string, updates: Partial<AlertThreshold>) => {
-    setThresholds(prev => prev.map(t => 
+    setThresholds(prev => prev.map(t =>
       t.id === id ? { ...t, ...updates } : t
     ));
   };
 
-  // Store thresholds in localStorage
   useEffect(() => {
     const stored = localStorage.getItem('costAlertThresholds');
     if (stored) {
@@ -123,93 +155,80 @@ export default function CostAlerts({ events, className }: CostAlertsProps) {
     localStorage.setItem('costAlertThresholds', JSON.stringify(thresholds));
   }, [thresholds]);
 
-  const activeAlerts = thresholds.filter(t => t.enabled && getAlertStatus(t).status !== 'safe');
+  const thresholdSummaries = thresholds.map((threshold) => {
+    const usage = getUsageForThreshold(threshold);
+    const alert = evaluateAlertStatus(threshold, usage);
+
+    return { threshold, usage, alert };
+  });
+
+  const activeAlerts = thresholdSummaries.filter(({ threshold, alert }) => threshold.enabled && alert.status !== 'safe');
 
   return (
-    <div className={`bg-white rounded-lg border border-gray-200 ${className || ''}`}>
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+    <div className={cn('rounded-lg border border-border bg-card shadow-sm', className)}>
+      <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-800">Cost Alerts</h2>
-          <p className="text-sm text-gray-600">Monitor your spending against budget thresholds</p>
+          <h2 className="text-lg font-semibold text-foreground">Cost alerts</h2>
+          <p className="text-sm text-muted-foreground">Monitor spending against the budgets you define.</p>
         </div>
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+          className="inline-flex items-center justify-center rounded-md border border-border bg-muted px-3 py-1 text-sm font-medium text-foreground transition-colors hover:bg-muted/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          {showSettings ? 'Hide Settings' : 'Settings'}
+          {showSettings ? 'Hide settings' : 'Settings'}
         </button>
       </div>
 
-      {/* Active Alerts */}
       {activeAlerts.length > 0 && (
-        <div className="p-4 bg-red-50 border-b border-gray-200">
-          <h3 className="text-sm font-medium text-red-800 mb-2">Active Alerts</h3>
-          <div className="space-y-2">
-            {activeAlerts.map(threshold => {
-              const alert = getAlertStatus(threshold);
-              const usage = getUsageForThreshold(threshold);
-              return (
-                <div key={threshold.id} className="flex items-center gap-2 text-sm">
-                  <span className={`w-2 h-2 rounded-full ${
-                    alert.status === 'danger' ? 'bg-red-500' : 'bg-amber-500'
-                  }`}></span>
-                  <span className="font-medium capitalize">{threshold.type}:</span>
-                  <span>${usage.toFixed(2)} / ${threshold.amount}</span>
-                  <span className="text-gray-600">({alert.message})</span>
-                </div>
-              );
-            })}
+        <div className="border-b border-border bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <h3 className="font-medium">Active alerts</h3>
+          <div className="mt-2 space-y-2">
+            {activeAlerts.map(({ threshold, usage, alert }) => (
+              <div key={threshold.id} className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex h-2 w-2 rounded-full bg-destructive" aria-hidden="true" />
+                <span className="font-medium capitalize">{threshold.type}:</span>
+                <span>${usage.toFixed(2)} / ${threshold.amount}</span>
+                <span className="text-muted-foreground">({alert.message})</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Alert Overview */}
-      <div className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {thresholds.map(threshold => {
-            const alert = getAlertStatus(threshold);
-            const usage = getUsageForThreshold(threshold);
-            
+      <div className="px-4 py-4">
+        <div className="grid gap-4 md:grid-cols-3">
+          {thresholdSummaries.map(({ threshold, alert, usage }) => {
+            const styles = STATUS_STYLES[alert.status];
+
             return (
-              <div key={threshold.id} className={`p-3 rounded-lg border-2 ${
-                !threshold.enabled ? 'border-gray-200 bg-gray-50' :
-                alert.status === 'danger' ? 'border-red-200 bg-red-50' :
-                alert.status === 'warning' ? 'border-amber-200 bg-amber-50' :
-                'border-green-200 bg-green-50'
-              }`}>
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-medium capitalize text-gray-800">{threshold.type}</h4>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    !threshold.enabled ? 'bg-gray-200 text-gray-600' :
-                    alert.status === 'danger' ? 'bg-red-200 text-red-800' :
-                    alert.status === 'warning' ? 'bg-amber-200 text-amber-800' :
-                    'bg-green-200 text-green-800'
-                  }`}>
-                    {!threshold.enabled ? 'Disabled' : alert.status}
+              <div
+                key={threshold.id}
+                className={cn('rounded-lg border p-4 transition-colors', styles.border, !threshold.enabled && 'opacity-60')}
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold capitalize text-foreground">{threshold.type}</h4>
+                    <p className="text-xs text-muted-foreground">Budget ${threshold.amount.toFixed(2)}</p>
+                  </div>
+                  <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', styles.badge)}>
+                    {threshold.enabled ? alert.status : 'disabled'}
                   </span>
                 </div>
-                
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
+
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between text-sm text-foreground">
                     <span>${usage.toFixed(2)} spent</span>
-                    <span>${threshold.amount} budget</span>
+                    <span>{Math.min(alert.percentage, 999).toFixed(0)}%</span>
                   </div>
-                  
-                  {threshold.enabled && (
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all ${
-                          alert.status === 'danger' ? 'bg-red-500' :
-                          alert.status === 'warning' ? 'bg-amber-500' :
-                          'bg-green-500'
-                        }`}
+                  {threshold.enabled && threshold.amount > 0 && (
+                    <div className="h-2 w-full rounded-full bg-muted">
+                      <div
+                        className={cn('h-2 rounded-full transition-all', styles.bar)}
                         style={{ width: `${Math.min(alert.percentage, 100)}%` }}
-                      ></div>
+                      />
                     </div>
                   )}
-                  
-                  <p className="text-xs text-gray-600">{alert.message}</p>
+                  <p className={cn('text-xs', styles.text)}>{alert.message}</p>
                 </div>
               </div>
             );
@@ -217,43 +236,37 @@ export default function CostAlerts({ events, className }: CostAlertsProps) {
         </div>
       </div>
 
-      {/* Settings */}
       {showSettings && (
-        <div className="border-t border-gray-200 p-4 bg-gray-50">
-          <h3 className="text-sm font-medium text-gray-800 mb-3">Alert Settings</h3>
-          <div className="space-y-4">
+        <div className="border-t border-border bg-muted/30 px-4 py-4">
+          <h3 className="text-sm font-medium text-foreground">Alert settings</h3>
+          <div className="mt-3 space-y-3">
             {thresholds.map(threshold => (
-              <div key={threshold.id} className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
+              <div key={threshold.id} className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <input
                     type="checkbox"
                     checked={threshold.enabled}
                     onChange={(e) => updateThreshold(threshold.id, { enabled: e.target.checked })}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-border text-primary focus:ring-primary"
                   />
-                  <span className="text-sm font-medium capitalize">{threshold.type}</span>
+                  <span className="capitalize">{threshold.type}</span>
                 </label>
-                
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">$</span>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>$</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={threshold.amount}
                     onChange={(e) => updateThreshold(threshold.id, { amount: parseFloat(e.target.value) || 0 })}
-                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
               </div>
             ))}
           </div>
-          
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-            <p className="text-xs text-blue-800">
-              <strong>Note:</strong> Alerts are checked in real-time based on your current usage data. 
-              Daily budgets reset at midnight, weekly budgets reset on Sunday, and monthly budgets reset on the 1st.
-            </p>
+          <div className="mt-4 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+            Alerts recalculate instantly using your filtered events. Daily budgets reset at midnight, weekly on Sunday, and monthly on the 1st.
           </div>
         </div>
       )}
