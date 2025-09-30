@@ -1,24 +1,39 @@
 
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import { cn } from "@/lib/utils";
+
+const navigationLinks = [
+  { href: "/", label: "Home" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/analytics", label: "Analytics" },
+];
 
 export function NavMenu() {
+  const pathname = usePathname();
+
   return (
-    <nav className="flex items-center space-x-4">
-      <Link href="/" className="text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50">
-        Home
-      </Link>
-      <Link
-        href="/dashboard"
-        className="text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-      >
-        Dashboard
-      </Link>
-      <Link
-        href="/analytics"
-        className="text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-      >
-        Analytics
-      </Link>
+    <nav aria-label="Primary" className="flex items-center gap-4">
+      {navigationLinks.map(({ href, label }) => {
+        const isActive = pathname === href;
+
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={isActive ? "page" : undefined}
+            className={cn(
+              "text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+              isActive && "text-foreground"
+            )}
+          >
+            {label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

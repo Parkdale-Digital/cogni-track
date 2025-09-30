@@ -68,61 +68,70 @@ export default async function AnalyticsPage() {
   // Bind server action with specific parameters
   const refresh7Days = refreshUsageData.bind(null, 7);
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Usage Analytics</h1>
-            <p className="text-gray-600 mt-2">Monitor your LLM API usage and costs with advanced insights and filtering</p>
-          </div>
-          <div className="flex gap-3">
-            <RefreshButton 
-              onRefresh={refresh7Days}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Refresh Data
-            </RefreshButton>
-            <a 
-              href="/dashboard" 
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              Manage Keys
-            </a>
-          </div>
-        </div>
+  const hasEvents = events.length > 0;
 
-        {/* Filterable Analytics Dashboard */}
-        {events.length > 0 ? (
-          <FilterableAnalyticsDashboard 
-            events={events}
-            availableProviders={availableProviders}
-            availableModels={availableModels}
-          />
-        ) : (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-            <div className="text-gray-500 mb-4">No usage data available</div>
-            <div className="text-sm text-gray-400 mb-6">
-              Add your API keys and fetch usage data to see detailed analytics
+  return (
+    <main className="container space-y-10 py-10 lg:py-12">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">Usage analytics</h1>
+          <p className="max-w-2xl text-muted-foreground">
+            Monitor spend anomalies, track token trends, and export usage snapshots without leaving your workspace.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <RefreshButton
+            onRefresh={refresh7Days}
+            className="inline-flex items-center justify-center rounded-md border border-border bg-muted px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+          >
+            Refresh data
+          </RefreshButton>
+          <a
+            href="/dashboard"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            Manage keys
+          </a>
+        </div>
+      </header>
+
+      {hasEvents ? (
+        <FilterableAnalyticsDashboard
+          events={events}
+          availableProviders={availableProviders}
+          availableModels={availableModels}
+        />
+      ) : (
+        <section
+          aria-labelledby="analytics-empty-state-heading"
+          className="rounded-lg border border-dashed border-muted-foreground/30 bg-card p-10 text-center shadow-sm"
+        >
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h2 id="analytics-empty-state-heading" className="text-xl font-semibold">
+                No usage data yet
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Connect a provider key and fetch recent activity to unlock dashboards and exports.
+              </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a 
-                href="/dashboard" 
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            <div className="flex flex-col justify-center gap-3 sm:flex-row">
+              <a
+                href="/dashboard"
+                className="inline-flex items-center justify-center rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
-                Add API Keys
+                Add API keys
               </a>
-              <RefreshButton 
+              <RefreshButton
                 onRefresh={refresh7Days}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="inline-flex items-center justify-center rounded-md border border-border bg-muted px-5 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
               >
-                Fetch Usage Data
+                Fetch usage data
               </RefreshButton>
             </div>
           </div>
-        )}
-      </div>
-    </div>
+        </section>
+      )}
+    </main>
   );
 }

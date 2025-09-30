@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import UsageSummary from './UsageSummary';
 import UsageChart from './UsageChart';
 import ExportControls from './ExportControls';
@@ -52,22 +52,27 @@ interface FilterableAnalyticsDashboardProps {
   availableModels: string[];
 }
 
-export default function FilterableAnalyticsDashboard({ 
-  events, 
-  availableProviders, 
-  availableModels 
+export default function FilterableAnalyticsDashboard({
+  events,
+  availableProviders,
+  availableModels
 }: FilterableAnalyticsDashboardProps) {
-  const [filters, setFilters] = useState<FilterOptions>(() => ({
+  const defaultFiltersRef = useRef<FilterOptions>({
     dateRange: getDefaultDateRange(),
     providers: [],
     models: []
+  });
+
+  const [filters, setFilters] = useState<FilterOptions>(() => ({
+    dateRange: { ...defaultFiltersRef.current.dateRange },
+    providers: [...defaultFiltersRef.current.providers],
+    models: [...defaultFiltersRef.current.models]
   }));
 
   // Apply filters to events
   const filteredEvents = useMemo(() => {
     let filtered = events;
 
-    // Apply date range filter
     if (filters.dateRange.start) {
       const startDate = new Date(filters.dateRange.start);
       filtered = filtered.filter(event => new Date(event.timestamp) >= startDate);
@@ -75,16 +80,14 @@ export default function FilterableAnalyticsDashboard({
 
     if (filters.dateRange.end) {
       const endDate = new Date(filters.dateRange.end);
-      endDate.setHours(23, 59, 59, 999); // Include the entire end date
+      endDate.setHours(23, 59, 59, 999);
       filtered = filtered.filter(event => new Date(event.timestamp) <= endDate);
     }
 
-    // Apply provider filter
     if (filters.providers.length > 0) {
       filtered = filtered.filter(event => filters.providers.includes(event.provider));
     }
 
-    // Apply model filter
     if (filters.models.length > 0) {
       filtered = filtered.filter(event => filters.models.includes(event.model));
     }
@@ -119,188 +122,234 @@ export default function FilterableAnalyticsDashboard({
   }, [filteredEvents]);
 
   const handleFiltersChange = useCallback((newFilters: FilterOptions) => {
-    setFilters(newFilters);
+    setFilters({
+      dateRange: { ...newFilters.dateRange },
+      providers: [...newFilters.providers],
+      models: [...newFilters.models]
+    });
   }, []);
 
-  const activeFiltersCount = 
-    (filters.dateRange.start ? 1 : 0) +
-    (filters.dateRange.end ? 1 : 0) +
-    filters.providers.length +
-    filters.models.length;
+  const resetFilters = useCallback(() => {
+    const defaults = defaultFiltersRef.current;
+    handleFiltersChange({
+      dateRange: { ...defaults.dateRange },
+      providers: [...defaults.providers],
+      models: [...defaults.models]
+    });
+  }, [handleFiltersChange]);
+
+  const activeFiltersCount = useMemo(() => {
+    const defaults = defaultFiltersRef.current;
+    let count = 0;
+
+    if (filters.dateRange.start !== defaults.dateRange.start) {
+      count++;
+    }
+
+    if (filters.dateRange.end !== defaults.dateRange.end) {
+      count++;
+    }
+
+    count += filters.providers.length;
+    count += filters.models.length;
+
+    return count;
+  }, [filters]);
+
+  const hasFilteredEvents = filteredEvents.length > 0;
+  const hasFiltersApplied = activeFiltersCount > 0;
+  const overviewHeadingId = 'analytics-overview';
+  const trendsHeadingId = 'analytics-trends';
+  const filtersHeadingId = 'analytics-filters';
+  const alertsHeadingId = 'analytics-alerts';
+  const drilldownHeadingId = 'analytics-drilldown';
 
   return (
-    <>
-      {/* Filter Info */}
-      {activeFiltersCount > 0 && (
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="text-sm font-medium text-blue-800">
-                {activeFiltersCount} filter{activeFiltersCount > 1 ? 's' : ''} active
-              </div>
-              <div className="text-sm text-blue-600">
-                Showing {filteredEvents.length} of {events.length} events
-              </div>
+    <div className="space-y-10">
+      <section aria-labelledby={overviewHeadingId} className="space-y-4">
+        <div className="space-y-1">
+          <h2 id={overviewHeadingId} className="text-2xl font-semibold tracking-tight">
+            Usage overview
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Totals update as you refine the filters below, helping you validate spikes at a glance.
+          </p>
+        </div>
+        <UsageSummary events={filteredEvents} />
+      </section>
+
+      <section aria-labelledby={trendsHeadingId} className="space-y-4">
+        <div className="space-y-1">
+          <h2 id={trendsHeadingId} className="text-2xl font-semibold tracking-tight">
+            Usage trends
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Token and cost charts respect the date range and chip selections you apply.
+          </p>
+        </div>
+        {hasFilteredEvents ? (
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <UsageChart data={chartData.tokens} type="tokens" />
+            <UsageChart data={chartData.cost} type="cost" />
+          </div>
+        ) : hasFiltersApplied ? (
+          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-card p-8 text-center shadow-sm">
+            <p className="text-sm font-medium text-foreground">No data matches your current filters</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Expand the date range or clear provider/model chips to see usage trends again.
+            </p>
+            <button
+              onClick={resetFilters}
+              className="mt-4 inline-flex items-center justify-center rounded-md border border-border bg-muted px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-card p-8 text-center shadow-sm">
+            <p className="text-sm font-medium text-foreground">Usage charts will appear once we have activity</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Refresh usage or add API keys to start collecting trend data.
+            </p>
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby={filtersHeadingId} className="space-y-4">
+        <div className="space-y-1">
+          <h2 id={filtersHeadingId} className="text-2xl font-semibold tracking-tight">
+            Advanced filtering
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Narrow by provider, model, or timeframe before exporting or drilling into anomalies.
+          </p>
+        </div>
+        {hasFiltersApplied && (
+          <div
+            role="status"
+            className="flex flex-col gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-primary sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <span className="font-medium">{activeFiltersCount} filter{activeFiltersCount > 1 ? 's' : ''} active.</span>{' '}
+              Showing {filteredEvents.length} of {events.length} events.
             </div>
             <button
-              onClick={() =>
-                handleFiltersChange({ dateRange: { start: '', end: '' }, providers: [], models: [] })
-              }
-              className="text-sm text-blue-600 hover:text-blue-800 underline"
+              onClick={resetFilters}
+              className="inline-flex items-center justify-center rounded-md border border-transparent px-3 py-1 text-sm font-medium text-primary underline-offset-4 transition hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Clear all filters
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Advanced Filters */}
-      <div className="mb-8">
-        <AdvancedFilters 
+        )}
+        <AdvancedFilters
           filters={filters}
           onFiltersChange={handleFiltersChange}
           availableProviders={availableProviders}
           availableModels={availableModels}
         />
-      </div>
+      </section>
 
-      {/* Cost Alerts */}
-      <div className="mb-8">
+      <section aria-labelledby={alertsHeadingId} className="space-y-4">
+        <div className="space-y-1">
+          <h2 id={alertsHeadingId} className="text-2xl font-semibold tracking-tight">
+            Alerts & anomalies
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Keep anomalies visible without overwhelming neutral data presentations.
+          </p>
+        </div>
         <CostAlerts events={filteredEvents} />
-      </div>
+        {hasFilteredEvents && <GrowthAnalysis events={filteredEvents} />}
+      </section>
 
-      {/* Growth Analysis */}
-      {filteredEvents.length > 0 && (
-        <div className="mb-8">
-          <GrowthAnalysis events={filteredEvents} />
-        </div>
-      )}
-
-      {/* Usage Summary */}
-      <div className="mb-8">
-        <UsageSummary events={filteredEvents} />
-      </div>
-
-      {/* Data Aggregation Reports */}
-      {filteredEvents.length > 0 && (
-        <div className="mb-8">
-          <DataAggregation events={filteredEvents} />
-        </div>
-      )}
-
-      {/* Charts */}
-      {filteredEvents.length > 0 ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
-          <UsageChart data={chartData.tokens} type="tokens" />
-          <UsageChart data={chartData.cost} type="cost" />
-        </div>
-      ) : activeFiltersCount > 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center mb-8">
-          <div className="text-gray-500 mb-2">No data matches your current filters</div>
-          <div className="text-sm text-gray-400 mb-4">
-            Try adjusting your date range, provider, or model filters
-          </div>
-          <button
-            onClick={() =>
-              handleFiltersChange({ dateRange: { start: '', end: '' }, providers: [], models: [] })
-            }
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Clear Filters
-          </button>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center mb-8">
-          <div className="text-gray-500 mb-4">No usage data available</div>
-          <div className="text-sm text-gray-400 mb-6">
-            Add your API keys and fetch usage data to see detailed analytics
-          </div>
-        </div>
-      )}
-
-      {/* Export Controls - Always available */}
-      <div className="mb-8 bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-medium text-gray-800">Export Data</h3>
-            <p className="text-sm text-gray-600">
-              {activeFiltersCount > 0 
-                ? `Export filtered data (${filteredEvents.length} events)`
-                : `Export all data (${events.length} events)`
-              }
+      {hasFilteredEvents && (
+        <section aria-labelledby={drilldownHeadingId} className="space-y-4">
+          <div className="space-y-1">
+            <h2 id={drilldownHeadingId} className="text-2xl font-semibold tracking-tight">
+              Reports & exports
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Export the current slice of data or review recent events for deeper investigation.
             </p>
           </div>
-          <ExportControls events={filteredEvents} />
-        </div>
-      </div>
-
-      {/* Recent Events Table */}
-      {filteredEvents.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-800">
-              Recent Usage Events
-              {activeFiltersCount > 0 && (
-                <span className="ml-2 text-sm font-normal text-gray-600">
-                  (filtered: {filteredEvents.length})
-                </span>
-              )}
-            </h2>
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg font-medium">Export data</h3>
+                <p className="text-sm text-muted-foreground">
+                  {hasFiltersApplied
+                    ? `Download ${filteredEvents.length.toLocaleString()} filtered events`
+                    : `Download all ${events.length.toLocaleString()} events`}
+                </p>
+              </div>
+              <ExportControls events={filteredEvents} />
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Timestamp
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Provider
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Model
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tokens In
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tokens Out
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cost
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredEvents.slice(0, 20).map((event) => (
-                  <tr key={event.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <ClientOnlyTimestamp timestamp={event.timestamp} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full capitalize">
-                        {event.provider}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {event.model}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {(event.tokensIn || 0).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {(event.tokensOut || 0).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${parseFloat(event.costEstimate || '0').toFixed(4)}
-                    </td>
+          <DataAggregation events={filteredEvents} />
+          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <div className="border-b border-border px-6 py-4">
+              <h3 className="text-lg font-semibold">
+                Recent usage events
+                {hasFiltersApplied && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    (filtered: {filteredEvents.length})
+                  </span>
+                )}
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Timestamp
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Provider
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Model
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Tokens in
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Tokens out
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Cost
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredEvents.slice(0, 20).map((event) => (
+                    <tr key={event.id} className="transition-colors hover:bg-muted/40">
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        <ClientOnlyTimestamp timestamp={event.timestamp} />
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        <span className="inline-flex items-center rounded-full border border-border px-2 py-1 text-xs font-medium capitalize text-muted-foreground">
+                          {event.provider}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">{event.model}</td>
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        {(event.tokensIn || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        {(event.tokensOut || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        ${parseFloat(event.costEstimate || '0').toFixed(4)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </section>
       )}
-    </>
+    </div>
   );
 }

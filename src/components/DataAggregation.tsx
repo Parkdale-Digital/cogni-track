@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+import { cn } from '@/lib/utils';
 
 interface UsageEvent {
   id: number;
@@ -39,13 +41,11 @@ export default function DataAggregation({ events, className }: DataAggregationPr
       let periodKey: string;
 
       if (groupBy === 'weekly') {
-        // Get the start of the week (Sunday)
         const startOfWeek = new Date(date);
         startOfWeek.setDate(date.getDate() - date.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
         periodKey = startOfWeek.toISOString().split('T')[0];
       } else {
-        // Get the start of the month
         periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       }
 
@@ -64,14 +64,12 @@ export default function DataAggregation({ events, className }: DataAggregationPr
       group.requests++;
       group.tokens += (event.tokensIn || 0) + (event.tokensOut || 0);
       group.cost += parseFloat(event.costEstimate || '0');
-      
-      // Track providers
+
       if (!group.providers[event.provider]) {
         group.providers[event.provider] = 0;
       }
       group.providers[event.provider]++;
 
-      // Track models
       if (!group.models[event.model]) {
         group.models[event.model] = 0;
       }
@@ -85,14 +83,13 @@ export default function DataAggregation({ events, className }: DataAggregationPr
     if (groupBy === 'weekly') {
       const date = new Date(period);
       const endDate = new Date(date.getTime() + 6 * 24 * 60 * 60 * 1000);
-      return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-    } else {
-      const [year, month] = period.split('-');
-      return new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long' 
-      });
+      return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     }
+    const [year, month] = period.split('-');
+    return new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long'
+    });
   };
 
   const formatNumber = (num: number): string => {
@@ -113,154 +110,114 @@ export default function DataAggregation({ events, className }: DataAggregationPr
   }));
 
   return (
-    <div className={`bg-white rounded-lg border border-gray-200 ${className || ''}`}>
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-800">Usage Reports</h2>
-            <p className="text-sm text-gray-600">Aggregated data for {timeframe} analysis</p>
-          </div>
-          
-          <div className="flex gap-2">
-            {/* Timeframe Toggle */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setTimeframe('weekly')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  timeframe === 'weekly' 
-                    ? 'bg-white text-gray-900 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Weekly
-              </button>
-              <button
-                onClick={() => setTimeframe('monthly')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  timeframe === 'monthly' 
-                    ? 'bg-white text-gray-900 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Monthly
-              </button>
-            </div>
-
-            {/* View Type Toggle */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setViewType('overview')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  viewType === 'overview' 
-                    ? 'bg-white text-gray-900 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setViewType('breakdown')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  viewType === 'breakdown' 
-                    ? 'bg-white text-gray-900 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Breakdown
-              </button>
-            </div>
-          </div>
+    <div className={cn('rounded-lg border border-border bg-card shadow-sm', className)}>
+      <div className="flex flex-col gap-4 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Usage reports</h2>
+          <p className="text-sm text-muted-foreground">Aggregate requests, tokens, and cost by week or month.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ToggleGroup
+            label="Timeframe"
+            options={[
+              { value: 'weekly', label: 'Weekly' },
+              { value: 'monthly', label: 'Monthly' }
+            ]}
+            value={timeframe}
+            onChange={(value) => setTimeframe(value as 'weekly' | 'monthly')}
+          />
+          <ToggleGroup
+            label="View"
+            options={[
+              { value: 'overview', label: 'Overview' },
+              { value: 'breakdown', label: 'Breakdown' }
+            ]}
+            value={viewType}
+            onChange={(value) => setViewType(value as 'overview' | 'breakdown')}
+          />
         </div>
       </div>
 
-      {/* Chart */}
       {aggregatedData.length > 0 ? (
-        <div className="p-4">
-          <div className="h-80 mb-6">
+        <div className="px-4 py-4">
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="period" 
-                  stroke="#666"
+              <BarChart data={chartData} margin={{ top: 24, right: 24, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+                <XAxis
+                  dataKey="period"
+                  stroke="hsl(var(--muted-foreground))"
                   fontSize={12}
-                  tick={{ fontSize: 11 }}
+                  tickMargin={12}
                 />
-                <YAxis 
-                  stroke="#666"
+                <YAxis
+                  stroke="hsl(var(--muted-foreground))"
                   fontSize={12}
                   tickFormatter={formatNumber}
                 />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #ccc',
-                    borderRadius: '4px'
+                    backgroundColor: 'hsl(var(--popover))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 'var(--radius, 0.75rem)',
+                    color: 'hsl(var(--popover-foreground))',
+                    boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12)'
                   }}
                   formatter={(value: number, name: string) => [
                     name === 'cost' ? `$${value.toFixed(2)}` : formatNumber(value),
                     name.charAt(0).toUpperCase() + name.slice(1)
                   ]}
                 />
-                <Legend />
-                <Bar dataKey="requests" fill="#3b82f6" name="Requests" />
-                <Bar dataKey="tokens" fill="#10b981" name="Tokens" />
-                <Bar dataKey="cost" fill="#f59e0b" name="Cost ($)" />
+                <Bar dataKey="requests" fill="hsl(var(--primary))" name="Requests" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="tokens" fill="hsl(var(--accent))" name="Tokens" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="cost" fill="hsl(var(--secondary))" name="Cost ($)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Data Table */}
           {viewType === 'breakdown' && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="mt-6 overflow-x-auto">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-muted/40">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Period
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Requests
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total Tokens
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Total tokens
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total Cost
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Total cost
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Top Provider
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Top provider
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Top Model
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Top model
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-border">
                   {aggregatedData.map((item) => {
                     const topProvider = Object.entries(item.providers).sort(([,a], [,b]) => b - a)[0];
                     const topModel = Object.entries(item.models).sort(([,a], [,b]) => b - a)[0];
-                    
+
                     return (
-                      <tr key={item.period} className="hover:bg-gray-50">
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <tr key={item.period} className="transition-colors hover:bg-muted/40">
+                        <td className="px-4 py-4 text-sm text-foreground">
                           {formatPeriod(item.period, timeframe)}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {item.requests.toLocaleString()}
+                        <td className="px-4 py-4 text-sm text-foreground">{item.requests.toLocaleString()}</td>
+                        <td className="px-4 py-4 text-sm text-foreground">{formatNumber(item.tokens)}</td>
+                        <td className="px-4 py-4 text-sm text-foreground">${item.cost.toFixed(2)}</td>
+                        <td className="px-4 py-4 text-sm text-foreground">
+                          {topProvider ? `${topProvider[0]} (${topProvider[1]})` : '—'}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatNumber(item.tokens)}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          ${item.cost.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {topProvider ? `${topProvider[0]} (${topProvider[1]})` : '-'}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {topModel ? `${topModel[0]} (${topModel[1]})` : '-'}
+                        <td className="px-4 py-4 text-sm text-foreground">
+                          {topModel ? `${topModel[0]} (${topModel[1]})` : '—'}
                         </td>
                       </tr>
                     );
@@ -271,13 +228,49 @@ export default function DataAggregation({ events, className }: DataAggregationPr
           )}
         </div>
       ) : (
-        <div className="p-8 text-center">
-          <div className="text-gray-500 mb-2">No data available</div>
-          <div className="text-sm text-gray-400">
-            Usage data will appear here once you have API activity
-          </div>
+        <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+          No usage data available for the selected timeframe.
         </div>
       )}
+    </div>
+  );
+}
+
+interface ToggleGroupOption {
+  value: string;
+  label: string;
+}
+
+interface ToggleGroupProps {
+  label: string;
+  options: ToggleGroupOption[];
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function ToggleGroup({ label, options, value, onChange }: ToggleGroupProps) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-1">
+      <span className="sr-only">{label}</span>
+      {options.map((option) => {
+        const isActive = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={cn(
+              'rounded-md px-3 py-1 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+              isActive
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+            aria-pressed={isActive}
+          >
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
