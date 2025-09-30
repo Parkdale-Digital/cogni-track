@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         const telemetry = await fetchAndStoreUsageForUser(user.id, 1); // Fetch last 1 day
         successCount++;
         if (telemetry.issues.length > 0) {
-          warningCount += 1;
+          warningCount += telemetry.issues.length;
           console.warn('Usage ingestion completed with issues', { userId: user.id, telemetry });
         } else {
           console.log(`Successfully processed user ${user.id}`);
