@@ -78,3 +78,11 @@
 | Extend spike harness coverage | Load new fixtures in `spikes/admin_ingestion_spike.ts`, assert endpoint-specific counters, and emit expanded telemetry in `admin_ingestion_spike.json`. | Updated spike script + report deltas | Completed |
 | Document validation evidence | Append before/after output and any anomalies to `audit/spike-results/ADMIN_INGESTION_SPIKE_NOTES.md`; confirm `relationshipIssues` stays empty. | Reviewed notes + artifact links | Completed |
 | Implementation readiness checkpoint | Review fixture completeness, spike results, and rate-limit plan with stakeholders before coding ingestion endpoints. | Sign-off notes + go/no-go decision | Completed |
+
+## Implementation Roadmap
+| Step | Description | Outputs | Status |
+| --- | --- | --- | --- |
+| Build admin usage ingestion worker | Implement cron + manual flows that call `/v1/organization/usage/completions` and persist normalized events using new Drizzle tables. | Worker code, ingestion telemetry, updated tests | Pending |
+| Sync organization metadata | Author jobs for projects, memberships, service accounts/keys, certificates, and cursors using captured fixtures as regression inputs. | Sync pipelines, verified referential integrity, updated schema snapshots | Pending |
+| Surface admin insights in UI | Add secured dashboards/tables that display aggregated usage, storage, and cost data; include feature flag guardrails. | Admin dashboard pages, RBAC checks, UI regression tests | Pending |
+| Enable monitoring & alerting | Wire metrics (`admin_sync_failures_total`, `admin_cursor_drift_seconds`, etc.) and configure alert thresholds + runbooks before rollout. | Observability config, alert definitions, updated ops docs | Pending |
