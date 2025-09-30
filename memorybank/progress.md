@@ -1,0 +1,14 @@
+2025-09-29 – Step 1 fixtures captured for OpenAI Admin API (usage, projects, memberships, service accounts, keys, certificates).
+2025-09-29 – Drafted OpenAI admin schema/migration design doc with FK graph, unique indexes, and review questions.
+2025-09-29 – Added admin ingestion spike harness (`spikes/admin_ingestion_spike.ts`) and runbook to validate fixture replay + dedupe logic.
+2025-09-29 – Documented OpenAI Admin security controls and integration guardrails (`docs/openai_admin_security_controls.md`, `memorybank/integrations.md`).
+2025-09-29 – Refreshed `openai_admin_data_plan.md` with >=8/10 confidence scores, validation hooks, and rollout updates referencing new artefacts.
+2025-09-29 – Archived admin ingestion spike report `audit/spike-results/admin_ingestion_spike.json` with summary notes.
+2025-09-29 – Scheduled security (2025-10-01) and legal (2025-10-02) reviews; agendas in `/audit/security-review` and `/audit/legal-review`.
+2025-09-29 – Authored draft migration `drizzle/0002_openai_admin_tables.sql` plus pre-check instructions (`audit/migration-prechecks.md`).
+2025-09-29 – Prep work for spike execution and migration pre-checks documented (checklists in `audit/spike-results/ADMIN_INGESTION_SPIKE_NOTES.md` and `audit/migration-prechecks.md`).
+2025-09-30 – Normalized spike harness timestamps to ISO strings (see `spikes/admin_ingestion_spike.ts`) to ensure dedupe collapses bucket + daily events.
+2025-09-30 – Executed admin ingestion spike harness (`pnpm exec tsx spikes/admin_ingestion_spike.ts`); logged checksum `aa5edfacf6c747a554b38c85de3fce46f729b85f16940dbc281572b13ef11832` in `audit/spike-results/ADMIN_INGESTION_SPIKE_NOTES.md`.
+2025-09-30 – Updated migration pre-check runbook to replace unsupported `drizzle-kit status` with supported commands.
+2025-09-30 – Swapped Drizzle pre-check commands to `export` + `check` in `audit/migration-prechecks.md` after CLI verification.
+2025-09-30 – Executed migration pre-checks checklist with audit artefacts under audit/migration-prechecks.

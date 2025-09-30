@@ -61,3 +61,5 @@ AGENTS.md
 CLAUDE.md
 openAI-data/
 .env.*
+audit/
+spikes/
