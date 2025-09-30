@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 interface FilterOptions {
   dateRange: {
@@ -12,6 +12,7 @@ interface FilterOptions {
 }
 
 interface AdvancedFiltersProps {
+  filters: FilterOptions;
   onFiltersChange: (filters: FilterOptions) => void;
   availableProviders: string[];
   availableModels: string[];
@@ -19,41 +20,59 @@ interface AdvancedFiltersProps {
 }
 
 export default function AdvancedFilters({ 
+  filters,
   onFiltersChange, 
   availableProviders, 
   availableModels, 
   className 
 }: AdvancedFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [filters, setFilters] = useState<FilterOptions>({
-    dateRange: {
-      start: '',
-      end: ''
-    },
-    providers: [],
-    models: []
-  });
-
-  // Set default date range to last 30 days
-  useEffect(() => {
-    const end = new Date();
-    const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
-    
-    setFilters(prev => ({
-      ...prev,
-      dateRange: {
-        start: start.toISOString().split('T')[0],
-        end: end.toISOString().split('T')[0]
-      }
-    }));
-  }, []);
+  const [draftFilters, setDraftFilters] = useState<FilterOptions>(filters);
+  const [actionStatus, setActionStatus] = useState<'idle' | 'applied' | 'cleared'>('idle');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
   useEffect(() => {
-    onFiltersChange(filters);
-  }, [filters, onFiltersChange]);
+    setDraftFilters(filters);
+    setActionStatus('idle');
+  }, [filters]);
+
+  useEffect(() => {
+    if (actionStatus === 'idle') return;
+
+    const timer = window.setTimeout(() => {
+      setActionStatus('idle');
+      setLastUpdatedAt(null);
+    }, 2500);
+
+    return () => window.clearTimeout(timer);
+  }, [actionStatus]);
+
+  useEffect(() => {
+    if (!isExpanded || lastUpdatedAt === null) return;
+
+    const timer = window.setTimeout(() => {
+      setIsExpanded(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [isExpanded, lastUpdatedAt]);
+
+  const hasPendingChanges = useMemo(() => {
+    const datesMatch =
+      draftFilters.dateRange.start === filters.dateRange.start &&
+      draftFilters.dateRange.end === filters.dateRange.end;
+    const providersMatch =
+      draftFilters.providers.length === filters.providers.length &&
+      draftFilters.providers.every(provider => filters.providers.includes(provider));
+    const modelsMatch =
+      draftFilters.models.length === filters.models.length &&
+      draftFilters.models.every(model => filters.models.includes(model));
+
+    return !(datesMatch && providersMatch && modelsMatch);
+  }, [draftFilters, filters]);
 
   const handleDateChange = (field: 'start' | 'end', value: string) => {
-    setFilters(prev => ({
+    setDraftFilters(prev => ({
       ...prev,
       dateRange: {
         ...prev.dateRange,
@@ -63,32 +82,63 @@ export default function AdvancedFilters({
   };
 
   const handleProviderToggle = (provider: string) => {
-    setFilters(prev => ({
-      ...prev,
-      providers: prev.providers.includes(provider)
+    setDraftFilters(prev => {
+      const nextProviders = prev.providers.includes(provider)
         ? prev.providers.filter(p => p !== provider)
-        : [...prev.providers, provider]
-    }));
+        : [...prev.providers, provider];
+
+      return {
+        ...prev,
+        providers: nextProviders
+      };
+    });
   };
 
   const handleModelToggle = (model: string) => {
-    setFilters(prev => ({
-      ...prev,
-      models: prev.models.includes(model)
+    setDraftFilters(prev => {
+      const nextModels = prev.models.includes(model)
         ? prev.models.filter(m => m !== model)
-        : [...prev.models, model]
-    }));
+        : [...prev.models, model];
+
+      return {
+        ...prev,
+        models: nextModels
+      };
+    });
   };
 
   const clearAllFilters = () => {
-    setFilters({
+    const clearedFilters: FilterOptions = {
       dateRange: {
         start: '',
         end: ''
       },
       providers: [],
       models: []
+    };
+
+    setDraftFilters(clearedFilters);
+    onFiltersChange(clearedFilters);
+    setActionStatus('cleared');
+    setLastUpdatedAt(Date.now());
+  };
+
+  const applyFilters = () => {
+    if (!hasPendingChanges) {
+      setActionStatus('idle');
+      return;
+    }
+
+    onFiltersChange({
+      dateRange: {
+        start: draftFilters.dateRange.start,
+        end: draftFilters.dateRange.end
+      },
+      providers: [...draftFilters.providers],
+      models: [...draftFilters.models]
     });
+    setActionStatus('applied');
+    setLastUpdatedAt(Date.now());
   };
 
   const activeFiltersCount = 
@@ -133,7 +183,7 @@ export default function AdvancedFilters({
                 <label className="block text-xs text-gray-500 mb-1">From</label>
                 <input
                   type="date"
-                  value={filters.dateRange.start}
+                  value={draftFilters.dateRange.start}
                   onChange={(e) => handleDateChange('start', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -142,7 +192,7 @@ export default function AdvancedFilters({
                 <label className="block text-xs text-gray-500 mb-1">To</label>
                 <input
                   type="date"
-                  value={filters.dateRange.end}
+                  value={draftFilters.dateRange.end}
                   onChange={(e) => handleDateChange('end', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -162,7 +212,7 @@ export default function AdvancedFilters({
                     key={provider}
                     onClick={() => handleProviderToggle(provider)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      filters.providers.includes(provider)
+                      draftFilters.providers.includes(provider)
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
@@ -186,7 +236,7 @@ export default function AdvancedFilters({
                     key={model}
                     onClick={() => handleModelToggle(model)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      filters.models.includes(model)
+                      draftFilters.models.includes(model)
                         ? 'bg-green-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
@@ -204,16 +254,39 @@ export default function AdvancedFilters({
           )}
 
           {/* Clear Filters */}
-          {activeFiltersCount > 0 && (
-            <div className="pt-4 border-t border-gray-200">
+          <div className="pt-4 border-t border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {activeFiltersCount > 0 ? (
               <button
                 onClick={clearAllFilters}
-                className="text-sm text-gray-600 hover:text-gray-800 underline"
+                className="text-sm text-gray-600 hover:text-gray-800 underline text-left"
               >
                 Clear all filters
               </button>
+            ) : (
+              <span className="text-sm text-gray-400">No filters selected</span>
+            )}
+            <div className="flex flex-col sm:items-end gap-2">
+              <button
+                type="button"
+                onClick={applyFilters}
+                disabled={!hasPendingChanges}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  hasPendingChanges
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                Apply filters
+              </button>
+              <div className="min-h-[1.25rem] text-xs text-gray-500">
+                {actionStatus === 'applied' && <span>Filters updated ✓</span>}
+                {actionStatus === 'cleared' && <span>Filters cleared</span>}
+                {actionStatus === 'idle' && !hasPendingChanges && activeFiltersCount > 0 && (
+                  <span>No pending changes</span>
+                )}
+              </div>
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

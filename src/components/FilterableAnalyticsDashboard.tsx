@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import UsageSummary from './UsageSummary';
 import UsageChart from './UsageChart';
 import ExportControls from './ExportControls';
@@ -36,6 +36,16 @@ interface FilterOptions {
   models: string[];
 }
 
+const getDefaultDateRange = () => {
+  const end = new Date();
+  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  return {
+    start: start.toISOString().split('T')[0],
+    end: end.toISOString().split('T')[0],
+  };
+};
+
 interface FilterableAnalyticsDashboardProps {
   events: UsageEvent[];
   availableProviders: string[];
@@ -47,11 +57,11 @@ export default function FilterableAnalyticsDashboard({
   availableProviders, 
   availableModels 
 }: FilterableAnalyticsDashboardProps) {
-  const [filters, setFilters] = useState<FilterOptions>({
-    dateRange: { start: '', end: '' },
+  const [filters, setFilters] = useState<FilterOptions>(() => ({
+    dateRange: getDefaultDateRange(),
     providers: [],
     models: []
-  });
+  }));
 
   // Apply filters to events
   const filteredEvents = useMemo(() => {
@@ -108,9 +118,9 @@ export default function FilterableAnalyticsDashboard({
     };
   }, [filteredEvents]);
 
-  const handleFiltersChange = (newFilters: FilterOptions) => {
+  const handleFiltersChange = useCallback((newFilters: FilterOptions) => {
     setFilters(newFilters);
-  };
+  }, []);
 
   const activeFiltersCount = 
     (filters.dateRange.start ? 1 : 0) +
@@ -133,7 +143,9 @@ export default function FilterableAnalyticsDashboard({
               </div>
             </div>
             <button
-              onClick={() => setFilters({ dateRange: { start: '', end: '' }, providers: [], models: [] })}
+              onClick={() =>
+                handleFiltersChange({ dateRange: { start: '', end: '' }, providers: [], models: [] })
+              }
               className="text-sm text-blue-600 hover:text-blue-800 underline"
             >
               Clear all filters
@@ -145,6 +157,7 @@ export default function FilterableAnalyticsDashboard({
       {/* Advanced Filters */}
       <div className="mb-8">
         <AdvancedFilters 
+          filters={filters}
           onFiltersChange={handleFiltersChange}
           availableProviders={availableProviders}
           availableModels={availableModels}
@@ -188,7 +201,9 @@ export default function FilterableAnalyticsDashboard({
             Try adjusting your date range, provider, or model filters
           </div>
           <button
-            onClick={() => setFilters({ dateRange: { start: '', end: '' }, providers: [], models: [] })}
+            onClick={() =>
+              handleFiltersChange({ dateRange: { start: '', end: '' }, providers: [], models: [] })
+            }
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Clear Filters
