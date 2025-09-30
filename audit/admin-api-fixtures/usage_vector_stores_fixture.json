@@ -1,0 +1,19 @@
+{
+  "object": "page",
+  "data": [
+    {
+      "object": "bucket",
+      "start_time": 1730419200,
+      "end_time": 1730505600,
+      "results": [
+        {
+          "object": "organization.usage.vector_stores.result",
+          "usage_bytes": 1048576,
+          "project_id": "proj_fixture_zeta"
+        }
+      ]
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

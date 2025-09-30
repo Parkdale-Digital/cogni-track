@@ -1,0 +1,25 @@
+{
+  "object": "page",
+  "data": [
+    {
+      "object": "bucket",
+      "start_time": 1730419200,
+      "end_time": 1730505600,
+      "results": [
+        {
+          "object": "organization.usage.images.result",
+          "images": 4,
+          "num_model_requests": 4,
+          "size": "512x512",
+          "source": "image.generation",
+          "model": "gpt-image-1",
+          "project_id": "proj_fixture_gamma",
+          "user_id": "user_fixture_gamma",
+          "api_key_id": "key_fixture_gamma"
+        }
+      ]
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

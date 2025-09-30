@@ -1,0 +1,23 @@
+{
+  "object": "page",
+  "data": [
+    {
+      "object": "bucket",
+      "start_time": 1730419200,
+      "end_time": 1730505600,
+      "results": [
+        {
+          "object": "organization.usage.audio_speeches.result",
+          "characters": 3500,
+          "num_model_requests": 3,
+          "project_id": "proj_fixture_delta",
+          "user_id": "user_fixture_delta",
+          "api_key_id": "key_fixture_delta",
+          "model": "gpt-4o-mini-tts"
+        }
+      ]
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

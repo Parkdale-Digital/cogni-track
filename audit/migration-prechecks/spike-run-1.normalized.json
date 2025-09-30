@@ -1,0 +1,17 @@
+{
+  "reportPath": "/home/shawn/projects/congi-projects/cogni-track-replit/audit/spike-results/admin_ingestion_spike.json",
+  "usageSummary": {
+    "totalBuckets": 1,
+    "totalRawEvents": 2,
+    "totalDedupedEvents": 1,
+    "tokensIn": 2849,
+    "tokensOut": 912,
+    "costEstimate": 0.003918,
+    "cursor": {
+      "endpoint": "usage/completions",
+      "nextPage": null,
+      "hasMore": false
+    }
+  },
+  "relationshipIssues": []
+}

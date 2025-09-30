@@ -1,0 +1,19 @@
+{
+  "object": "page",
+  "data": [
+    {
+      "object": "bucket",
+      "start_time": 1730419200,
+      "end_time": 1730505600,
+      "results": [
+        {
+          "object": "organization.usage.code_interpreter_sessions.result",
+          "num_sessions": 6,
+          "project_id": "proj_fixture_eta"
+        }
+      ]
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

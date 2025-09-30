@@ -1,0 +1,33 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "organization.project",
+      "id": "proj_abc123",
+      "name": "analytics-dashboard",
+      "status": "active",
+      "archived_at": null,
+      "created_at": "2024-07-02T18:22:11Z",
+      "updated_at": "2025-09-28T03:41:55Z",
+      "billing_reference": {
+        "type": "workspace",
+        "id": "ws_main"
+      }
+    },
+    {
+      "object": "organization.project",
+      "id": "proj_xyz890",
+      "name": "internal-rag",
+      "status": "archived",
+      "archived_at": "2025-08-15T12:00:00Z",
+      "created_at": "2023-12-14T04:12:45Z",
+      "updated_at": "2025-08-15T12:00:00Z",
+      "billing_reference": {
+        "type": "workspace",
+        "id": "ws_main"
+      }
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

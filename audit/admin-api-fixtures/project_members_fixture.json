@@ -1,0 +1,27 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "organization.project_member",
+      "id": "pmem_01",
+      "project_id": "proj_abc123",
+      "user_id": "user_789",
+      "email": "owner@example.com",
+      "role": "owner",
+      "invited_at": "2023-11-30T16:12:00Z",
+      "added_at": "2023-12-01T08:05:41Z"
+    },
+    {
+      "object": "organization.project_member",
+      "id": "pmem_02",
+      "project_id": "proj_abc123",
+      "user_id": "user_456",
+      "email": "analyst@example.com",
+      "role": "viewer",
+      "invited_at": "2024-01-10T10:55:00Z",
+      "added_at": "2024-01-11T07:14:24Z"
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

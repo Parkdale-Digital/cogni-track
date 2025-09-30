@@ -1,0 +1,29 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "organization.certificate_event",
+      "id": "cevt_001",
+      "certificate_id": "cert_001",
+      "action": "issued",
+      "actor_id": "user_789",
+      "occurred_at": "2024-05-20T14:33:22Z",
+      "metadata": {
+        "actor_email": "security@example.com"
+      }
+    },
+    {
+      "object": "organization.certificate_event",
+      "id": "cevt_002",
+      "certificate_id": "cert_001",
+      "action": "downloaded",
+      "actor_id": "svc_123",
+      "occurred_at": "2024-05-20T15:00:00Z",
+      "metadata": {
+        "ip_address": "203.0.113.24"
+      }
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "generatedAt": "2025-09-30T18:52:45.670Z",
+    "fixtures": {
+      "usage": "usage_completions_fixture.json",
+      "usageVariants": {
+        "embeddings": "usage_embeddings_fixture.json",
+        "moderations": "usage_moderations_fixture.json",
+        "images": "usage_images_fixture.json",
+        "audioSpeeches": "usage_audio_speeches_fixture.json",
+        "audioTranscriptions": "usage_audio_transcriptions_fixture.json",
+        "vectorStores": "usage_vector_stores_fixture.json",
+        "codeInterpreterSessions": "usage_code_interpreter_fixture.json",
+        "costs": "costs_fixture.json"
+      },
+      "projects": "projects_list_fixture.json",
+      "members": "project_members_fixture.json",
+      "serviceAccounts": "service_accounts_fixture.json",
+      "serviceAccountKeys": "service_account_keys_fixture.json",
+      "certificates": "certificates_fixture.json",
+      "certificateEvents": "certificate_events_fixture.json"
+    }
+  },
+  "usageSummary": {
+    "totalBuckets": 1,
+    "totalRawEvents": 2,
+    "totalDedupedEvents": 1,
+    "tokensIn": 2849,
+    "tokensOut": 912,
+    "costEstimate": 0.003918,
+    "cursor": {
+      "endpoint": "usage/completions",
+      "nextPage": null,
+      "lastSyncedAt": "2025-09-30T18:52:45.667Z",
+      "hasMore": false
+    }
+  },
+  "dedupedUsage": [
+    {
+      "bucketTimestamp": "2024-09-23T00:00:00.000Z",
+      "model": "gpt-4o-mini",
+      "tokensIn": 2849,
+      "tokensOut": 912,
+      "costEstimate": 0.003918,
+      "sources": [
+        "bucket:data",
+        "daily_costs"
+      ]
+    }
+  ],
+  "additionalSummaries": [
+    {
+      "endpoint": "usage/embeddings",
+      "fixture": "usage_embeddings_fixture.json",
+      "totalBuckets": 1,
+      "totalResults": 2,
+      "metrics": {
+        "input_tokens": 2560,
+        "num_model_requests": 4
+      },
+      "hasMore": false,
+      "nextPage": null
+    },
+    {
+      "endpoint": "usage/moderations",
+      "fixture": "usage_moderations_fixture.json",
+      "totalBuckets": 1,
+      "totalResults": 1,
+      "metrics": {
+        "input_tokens": 128,
+        "num_model_requests": 2
+      },
+      "hasMore": false,
+      "nextPage": null
+    },
+    {
+      "endpoint": "usage/images",
+      "fixture": "usage_images_fixture.json",
+      "totalBuckets": 1,
+      "totalResults": 1,
+      "metrics": {
+        "images": 4,
+        "num_model_requests": 4
+      },
+      "breakdowns": {
+        "bySize": {
+          "512x512": 4
+        },
+        "bySource": {
+          "image.generation": 4
+        }
+      },
+      "hasMore": false,
+      "nextPage": null
+    },
+    {
+      "endpoint": "usage/audio_speeches",
+      "fixture": "usage_audio_speeches_fixture.json",
+      "totalBuckets": 1,
+      "totalResults": 1,
+      "metrics": {
+        "characters": 3500,
+        "num_model_requests": 3
+      },
+      "hasMore": false,
+      "nextPage": null
+    },
+    {
+      "endpoint": "usage/audio_transcriptions",
+      "fixture": "usage_audio_transcriptions_fixture.json",
+      "totalBuckets": 1,
+      "totalResults": 1,
+      "metrics": {
+        "seconds": 780,
+        "num_model_requests": 5
+      },
+      "hasMore": false,
+      "nextPage": null
+    },
+    {
+      "endpoint": "usage/vector_stores",
+      "fixture": "usage_vector_stores_fixture.json",
+      "totalBuckets": 1,
+      "totalResults": 1,
+      "metrics": {
+        "usage_bytes": 1048576
+      },
+      "hasMore": false,
+      "nextPage": null
+    },
+    {
+      "endpoint": "usage/code_interpreter_sessions",
+      "fixture": "usage_code_interpreter_fixture.json",
+      "totalBuckets": 1,
+      "totalResults": 1,
+      "metrics": {
+        "num_sessions": 6
+      },
+      "hasMore": false,
+      "nextPage": null
+    },
+    {
+      "endpoint": "costs",
+      "fixture": "costs_fixture.json",
+      "totalBuckets": 1,
+      "totalResults": 2,
+      "metrics": {
+        "amount_value": 15.55
+      },
+      "breakdowns": {
+        "byLineItem": {
+          "usage.completions": 12.34,
+          "usage.images": 3.21
+        },
+        "byCurrency": {
+          "usd": 15.55
+        }
+      },
+      "hasMore": false,
+      "nextPage": null
+    }
+  ],
+  "relationships": {
+    "missingProjectIds": [],
+    "orphanServiceAccountIds": [],
+    "missingServiceAccountIds": [],
+    "orphanKeyIds": [],
+    "missingCertificateIds": []
+  }
+}
