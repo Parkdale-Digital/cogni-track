@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, serial, integer, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, serial, integer, decimal, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 
 // Users table to store Clerk user IDs
 export const users = pgTable("users", {
@@ -30,4 +30,79 @@ export const usageEvents = pgTable("usage_events", {
   tokensOut: integer("tokens_out").default(0),
   costEstimate: decimal("cost_estimate", { precision: 10, scale: 6 }).default("0"),
   timestamp: timestamp("timestamp").notNull(),
+}, (usageEvents) => ({
+  usageAdminBucketIdx: uniqueIndex("usage_admin_bucket_idx").on(usageEvents.timestamp, usageEvents.model, usageEvents.keyId),
+}));
+
+export const openaiProjects = pgTable("openai_projects", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  status: text("status").notNull(),
+  archivedAt: timestamp("archived_at"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at"),
+  billingReferenceType: text("billing_reference_type"),
+  billingReferenceId: text("billing_reference_id"),
+});
+
+export const openaiProjectMembers = pgTable("openai_project_members", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull().references(() => openaiProjects.id, { onDelete: 'cascade' }),
+  userId: text("user_id").notNull(),
+  email: text("email"),
+  role: text("role").notNull(),
+  invitedAt: timestamp("invited_at"),
+  addedAt: timestamp("added_at"),
+  removedAt: timestamp("removed_at"),
+}, (members) => ({
+  projectUserIdx: uniqueIndex("openai_proj_members_project_user_idx").on(members.projectId, members.userId),
+}));
+
+export const openaiServiceAccounts = pgTable("openai_service_accounts", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull().references(() => openaiProjects.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  role: text("role").notNull(),
+  createdAt: timestamp("created_at").notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const openaiServiceAccountKeys = pgTable("openai_service_account_keys", {
+  id: text("id").primaryKey(),
+  serviceAccountId: text("service_account_id").notNull().references(() => openaiServiceAccounts.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  redactedValue: text("redacted_value").notNull(),
+  createdAt: timestamp("created_at").notNull(),
+  lastUsedAt: timestamp("last_used_at"),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const openaiCertificates = pgTable("openai_certificates", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  status: text("status").notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  validAt: timestamp("valid_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const openaiCertificateEvents = pgTable("openai_certificate_events", {
+  id: text("id").primaryKey(),
+  certificateId: text("certificate_id").notNull().references(() => openaiCertificates.id, { onDelete: 'cascade' }),
+  action: text("action").notNull(),
+  actorId: text("actor_id"),
+  occurredAt: timestamp("occurred_at").notNull(),
+  metadata: jsonb("metadata"),
+});
+
+export const openaiAdminCursors = pgTable("openai_admin_cursors", {
+  endpoint: text("endpoint").primaryKey(),
+  nextPage: text("next_page"),
+  version: integer("version").default(1).notNull(),
+  lastSyncedAt: timestamp("last_synced_at"),
+  windowStart: timestamp("window_start"),
+  windowEnd: timestamp("window_end"),
+  errorCount: integer("error_count").default(0).notNull(),
 });

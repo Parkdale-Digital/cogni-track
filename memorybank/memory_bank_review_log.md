@@ -12,3 +12,6 @@
 2025-09-30 – Memory review after adjusting migration pre-check workflow.
 2025-09-30 – Memory review after updating migration pre-check command list.
 2025-09-30 – Memory review after executing migration pre-check audit commands and capturing outputs.
+2025-09-30 – Memory review after boosting migration pre-check confidence artefacts.
+2025-09-30 – Memory review after updating schema/relations for OpenAI admin support.
+2025-09-30 – Memory review after schema parity verification and audit note update.
