@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
 interface RefreshButtonProps {
@@ -50,12 +51,13 @@ export default function RefreshButton({ onRefresh, children, className }: Refres
   };
 
   return (
-    <button 
+    <Button
+      type="button"
       onClick={handleClick}
       disabled={isLoading}
-      className={className || "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"}
+      className={className}
     >
-      {isLoading ? 'Loading...' : children}
-    </button>
+      {isLoading ? 'Loading…' : children}
+    </Button>
   );
 }

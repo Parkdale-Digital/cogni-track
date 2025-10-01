@@ -69,7 +69,7 @@ export default function UsageSummary({ events }: UsageSummaryProps) {
 
   return (
     <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-foreground">Usage summary</h2>
+      <h3 className="text-lg font-semibold text-foreground">Usage summary</h3>
 
       <dl className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         {stats.map((stat) => (

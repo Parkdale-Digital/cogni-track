@@ -168,7 +168,7 @@ export default function CostAlerts({ events, className }: CostAlertsProps) {
     <div className={cn('rounded-lg border border-border bg-card shadow-sm', className)}>
       <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Cost alerts</h2>
+          <h3 className="text-base font-semibold text-foreground">Cost alerts</h3>
           <p className="text-sm text-muted-foreground">Monitor spending against the budgets you define.</p>
         </div>
         <button
