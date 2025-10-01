@@ -15,3 +15,4 @@
 2025-09-30 – Memory review after boosting migration pre-check confidence artefacts.
 2025-09-30 – Memory review after updating schema/relations for OpenAI admin support.
 2025-09-30 – Memory review after schema parity verification and audit note update.
+2025-10-01 – Memory review after documenting admin bucket upsert constraint widening and spike metadata assertions.

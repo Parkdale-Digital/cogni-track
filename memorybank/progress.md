@@ -25,3 +25,5 @@
 2025-10-01 – Snapshot regeneration pending; Drizzle tooling requires DATABASE_URL which is not available in sandbox. Documented TODO to rerun `pnpm drizzle-kit generate` in staging.
 2025-10-01 – Added feature flag `ENABLE_DAILY_USAGE_WINDOWS`; `fetchAndStoreUsageForUser` now iterates per-day windows, aggregates telemetry (`updatedEvents`, `windowsProcessed`), and upserts each bucket with simulation fallback scoped per window.
 2025-10-01 – Responded to PR review threads (window metadata upserts, telemetry increments, migration strategy) and clarified follow-ups; local `npm run build` showed no TypeScript errors post-fix.
+2025-10-01 – Broadened `usage_admin_bucket_idx` uniqueness to cover project/api key/user/tier/batch metadata and switched ingestion writes to a single Drizzle `onConflictDoUpdate` upsert keyed on the named constraint.
+2025-10-01 – Added dual completions fixture (`usage_completions_fixture_dual.json`) plus spike harness assertions so metadata-rich admin buckets survive dedupe; spike report now records the metadata buckets for audit.
