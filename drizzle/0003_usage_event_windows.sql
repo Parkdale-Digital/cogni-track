@@ -26,6 +26,7 @@ ALTER TABLE "usage_events"
 
 DROP INDEX IF EXISTS "usage_admin_bucket_idx";
 CREATE UNIQUE INDEX IF NOT EXISTS "usage_admin_bucket_idx"
-    ON "usage_events" ("key_id", "model", "window_start");
+    ON "usage_events" ("key_id", "model", "window_start")
+    WHERE "window_start" IS NOT NULL;
 
 COMMIT;

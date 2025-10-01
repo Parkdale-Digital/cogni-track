@@ -21,3 +21,4 @@
 2025-10-01 – Exercised admin throttle against mocked server (audit/mock_rate_limit.log) verifying Retry-After handling and burst capping.
 2025-10-01 – Added per-day window + metadata columns to `usage_events` (`window_start`, cached token splits, project/key identifiers) and created migration `drizzle/0003_usage_event_windows.sql` updating `usage_admin_bucket_idx` to dedupe on `(key_id, model, window_start)`.
 2025-10-01 – Extended `src/lib/usage-fetcher.ts` to populate new `usage_events` metadata: admin/standard fetchers assign `window_start/window_end`, capture OpenAI project/key/tier context, cached token splits, and dedupe on `(keyId, model, windowStart)` before inserts.
+2025-10-01 – Converted ingestion dedupe to an upsert (update on existing rows) and tightened `usage_admin_bucket_idx` with a partial index to avoid NULL `window_start`; addressed reviewer feedback about redundant `batch` coalescing.

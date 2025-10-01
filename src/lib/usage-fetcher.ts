@@ -823,7 +823,7 @@ export async function fetchAndStoreUsageForUser(
               openaiUserId: usage.openaiUserId,
               openaiApiKeyId: usage.openaiApiKeyId,
               serviceTier: usage.serviceTier,
-              batch: usage.batch ?? undefined,
+              batch: usage.batch,
               numModelRequests: usage.numModelRequests,
               inputCachedTokens: usage.inputCachedTokens,
               inputUncachedTokens: usage.inputUncachedTokens,
@@ -840,6 +840,37 @@ export async function fetchAndStoreUsageForUser(
             newEventsCount += 1;
             telemetry.storedEvents += 1;
           } else {
+            await db
+              .update(usageEvents)
+              .set({
+                tokensIn: usage.tokensIn,
+                tokensOut: usage.tokensOut,
+                costEstimate: usage.costEstimate.toFixed(6),
+                timestamp: usage.timestamp,
+                windowEnd,
+                projectId: usage.projectId,
+                openaiUserId: usage.openaiUserId,
+                openaiApiKeyId: usage.openaiApiKeyId,
+                serviceTier: usage.serviceTier,
+                batch: usage.batch,
+                numModelRequests: usage.numModelRequests,
+                inputCachedTokens: usage.inputCachedTokens,
+                inputUncachedTokens: usage.inputUncachedTokens,
+                inputTextTokens: usage.inputTextTokens,
+                outputTextTokens: usage.outputTextTokens,
+                inputCachedTextTokens: usage.inputCachedTextTokens,
+                inputAudioTokens: usage.inputAudioTokens,
+                inputCachedAudioTokens: usage.inputCachedAudioTokens,
+                outputAudioTokens: usage.outputAudioTokens,
+                inputImageTokens: usage.inputImageTokens,
+                inputCachedImageTokens: usage.inputCachedImageTokens,
+                outputImageTokens: usage.outputImageTokens,
+              })
+              .where(and(
+                eq(usageEvents.keyId, keyRecord.id),
+                eq(usageEvents.model, usage.model),
+                eq(usageEvents.windowStart, windowStart),
+              ));
             telemetry.skippedEvents += 1;
           }
 

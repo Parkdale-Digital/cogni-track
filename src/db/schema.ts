@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, serial, integer, decimal, jsonb, uniqueIndex, boolean } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // Users table to store Clerk user IDs
 export const users = pgTable("users", {
@@ -50,11 +51,9 @@ export const usageEvents = pgTable("usage_events", {
   inputCachedImageTokens: integer("input_cached_image_tokens"),
   outputImageTokens: integer("output_image_tokens"),
 }, (usageEvents) => ({
-  usageAdminBucketIdx: uniqueIndex("usage_admin_bucket_idx").on(
-    usageEvents.keyId,
-    usageEvents.model,
-    usageEvents.windowStart,
-  ),
+  usageAdminBucketIdx: uniqueIndex("usage_admin_bucket_idx")
+    .on(usageEvents.keyId, usageEvents.model, usageEvents.windowStart)
+    .where(sql`window_start IS NOT NULL`),
 }));
 
 export const openaiProjects = pgTable("openai_projects", {
