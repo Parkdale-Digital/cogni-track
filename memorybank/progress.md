@@ -18,3 +18,4 @@
 2025-09-30 – Logged ingestion readiness gaps (fixture ID drift, pagination coverage, rate limiting) and captured remediation plan in `memorybank/ingestion_readiness_report.md`.
 2025-09-30 – Added multi-page admin usage fixtures (`*_page2.json`) and updated spike harness to validate pagination + foreign key references.
 2025-09-30 – Implemented admin usage throttle (`OPENAI_ADMIN_REQUESTS_PER_MINUTE`/`OPENAI_ADMIN_MAX_BURST`) and Retry-After aware fetch logic in `src/lib/usage-fetcher.ts`; updated spike harness + fixtures to cover pagination and FK checks.
+2025-10-01 – Exercised admin throttle against mocked server (audit/mock_rate_limit.log) verifying Retry-After handling and burst capping.
