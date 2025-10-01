@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import {
+  SafeSignInButton,
+  SafeSignUpButton,
+  SafeSignedIn,
+  SafeSignedOut,
+  SafeUserButton,
+} from "@/lib/safe-clerk";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,20 +25,20 @@ export default function Home() {
         </p>
       </div>
 
-      <SignedOut>
+      <SafeSignedOut>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <SignInButton>
+          <SafeSignInButton>
             <Button size="lg">Sign in</Button>
-          </SignInButton>
-          <SignUpButton>
+          </SafeSignInButton>
+          <SafeSignUpButton>
             <Button size="lg" variant="outline">
               Create an account
             </Button>
-          </SignUpButton>
+          </SafeSignUpButton>
         </div>
-      </SignedOut>
+      </SafeSignedOut>
 
-      <SignedIn>
+      <SafeSignedIn>
         <Card className="mt-10 w-full max-w-xl">
           <CardContent className="flex flex-col items-center gap-4 py-6 text-center sm:flex-row sm:justify-between sm:text-left">
             <div className="space-y-1">
@@ -45,11 +51,11 @@ export default function Home() {
               <Button asChild size="lg">
                 <Link href="/dashboard">Go to dashboard</Link>
               </Button>
-              <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "h-10 w-10" } }} />
+              <SafeUserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "h-10 w-10" } }} />
             </div>
           </CardContent>
         </Card>
-      </SignedIn>
+      </SafeSignedIn>
     </main>
   );
 }

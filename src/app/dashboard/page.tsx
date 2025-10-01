@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { SignedIn, useUser } from '@clerk/nextjs';
+import { SafeSignedIn, useSafeUser } from '@/lib/safe-clerk';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,7 +21,7 @@ interface ProviderKey {
 }
 
 export default function DashboardPage() {
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded } = useSafeUser();
   const router = useRouter();
   const [keys, setKeys] = useState<ProviderKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,7 +155,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <SignedIn>
+    <SafeSignedIn>
       <div className="container space-y-10 py-10">
         <header className="space-y-2 text-center sm:text-left">
           <h1 className="text-3xl font-semibold tracking-tight">Welcome back{user.firstName ? `, ${user.firstName}` : ''}.</h1>
@@ -232,6 +232,6 @@ export default function DashboardPage() {
           )}
         </section>
       </div>
-    </SignedIn>
+    </SafeSignedIn>
   );
 }
