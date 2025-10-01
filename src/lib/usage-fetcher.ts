@@ -777,6 +777,7 @@ export async function fetchAndStoreUsageForUser(
         let processedWindows = 0;
         const fallbackModels = new Set<string>();
         let skipKey = false;
+        let simulatedCountedForKey = false;
 
         for (const windowRange of windowRanges) {
           let usageData: UsageEventData[] = [];
@@ -807,8 +808,9 @@ export async function fetchAndStoreUsageForUser(
                   message: error.message,
                   code: error.code,
                 });
-                if (!usedSimulation) {
+                if (!simulatedCountedForKey) {
                   telemetry.simulatedKeys += 1;
+                  simulatedCountedForKey = true;
                 }
                 usedSimulation = true;
                 usedSimulationThisWindow = true;
@@ -900,9 +902,9 @@ export async function fetchAndStoreUsageForUser(
               newEventsCount += 1;
               telemetry.storedEvents += 1;
             } else {
-              await db
-                .update(usageEvents)
-                .set({
+            await db
+              .update(usageEvents)
+              .set({
                   tokensIn: usage.tokensIn,
                   tokensOut: usage.tokensOut,
                   costEstimate: usage.costEstimate.toFixed(6),
@@ -931,7 +933,6 @@ export async function fetchAndStoreUsageForUser(
                   eq(usageEvents.model, usage.model),
                   eq(usageEvents.windowStart, windowStart),
                 ));
-              telemetry.skippedEvents += 1;
               telemetry.updatedEvents += 1;
               updatedEventsCount += 1;
             }
