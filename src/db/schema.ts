@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, serial, integer, decimal, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, serial, integer, decimal, jsonb, uniqueIndex, boolean } from "drizzle-orm/pg-core";
 
 // Users table to store Clerk user IDs
 export const users = pgTable("users", {
@@ -30,8 +30,31 @@ export const usageEvents = pgTable("usage_events", {
   tokensOut: integer("tokens_out").default(0),
   costEstimate: decimal("cost_estimate", { precision: 10, scale: 6 }).default("0"),
   timestamp: timestamp("timestamp").notNull(),
+  windowStart: timestamp("window_start"),
+  windowEnd: timestamp("window_end"),
+  projectId: text("project_id"),
+  openaiUserId: text("openai_user_id"),
+  openaiApiKeyId: text("openai_api_key_id"),
+  serviceTier: text("service_tier"),
+  batch: boolean("batch").default(false),
+  numModelRequests: integer("num_model_requests"),
+  inputCachedTokens: integer("input_cached_tokens"),
+  inputUncachedTokens: integer("input_uncached_tokens"),
+  inputTextTokens: integer("input_text_tokens"),
+  outputTextTokens: integer("output_text_tokens"),
+  inputCachedTextTokens: integer("input_cached_text_tokens"),
+  inputAudioTokens: integer("input_audio_tokens"),
+  inputCachedAudioTokens: integer("input_cached_audio_tokens"),
+  outputAudioTokens: integer("output_audio_tokens"),
+  inputImageTokens: integer("input_image_tokens"),
+  inputCachedImageTokens: integer("input_cached_image_tokens"),
+  outputImageTokens: integer("output_image_tokens"),
 }, (usageEvents) => ({
-  usageAdminBucketIdx: uniqueIndex("usage_admin_bucket_idx").on(usageEvents.timestamp, usageEvents.model, usageEvents.keyId),
+  usageAdminBucketIdx: uniqueIndex("usage_admin_bucket_idx").on(
+    usageEvents.keyId,
+    usageEvents.model,
+    usageEvents.windowStart,
+  ),
 }));
 
 export const openaiProjects = pgTable("openai_projects", {

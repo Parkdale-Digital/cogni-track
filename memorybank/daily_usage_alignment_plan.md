@@ -51,3 +51,20 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
 - **Validation**: Unit + contract tests, migration dry runs, parity diff job, manual QA against OpenAI dashboard.
 - **Rollback**: Disable feature flag, revert migrations/DB snapshot, truncate new columns if required, document in `audit/rollback_log.md`.
 
+## Decisions (2025-10-01)
+- **Cursor scope**: Track ingestion state per provider key by namespacing `openai_admin_cursors.endpoint` as `usage/completions:key_<providerKeyId>`. This keeps compatibility with the existing primary key while preventing different keys from clobbering one another. User-level backfill helpers will compose endpoint strings for each key.
+- **Cron authentication**: Continue to require `Authorization: Bearer <CRON_SECRET>` in `src/app/api/cron/daily-usage/route.ts`. Configure Vercel Cron to send the header via project-level secret injection; retain the current fail-closed guard when `CRON_SECRET` is absent and log rejected attempts. For local/manual runs, provide CLI flag (`--cron-secret`) instead of bypassing authentication.
+- **Retention window**: Maintain a 35-day rolling window (30-day dashboard parity + 5-day buffer for retries). Backfill jobs will prune rows older than 35 days once parity diff confirms data capture, keeping storage predictable.
+
+## Implementation Sequence (Next Pass)
+1. **Schema prep** – author additive migration introducing new columns (`window_start`, `window_end`, project/key/tier metadata, cached token fields) and update `openai_admin_cursors` helper to generate per-key endpoint identifiers.
+2. **Fetcher refactor** – extract per-day helper, integrate feature flag, and extend telemetry payloads; wire into cron/backfill entry points.
+3. **Backfill tooling** – implement CLI/server action for historical load, including throttled loops and progress logging.
+4. **UI & API updates** – expose new fields in `/api/usage`, update analytics components, and add pagination/filters.
+5. **Parity automation** – build diff job against OpenAI exports, integrate into monitoring before flipping the feature flag.
+
+## Open Follow-Ups
+- Verify Vercel Cron header injection in staging before production rollout.
+- Define migration rollback SQL once column list is finalized.
+- Draft operator runbook covering cron secret rotation and parity alarm handling.
+
