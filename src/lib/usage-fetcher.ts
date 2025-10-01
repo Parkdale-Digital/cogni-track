@@ -167,11 +167,16 @@ async function acquireAdminToken(): Promise<void> {
       adminTokens -= 1;
       return;
     }
-    if (Date.now() - start > ADMIN_THROTTLE_TIMEOUT_MS) {
+    const now = Date.now();
+    const elapsed = now - start;
+    if (elapsed > ADMIN_THROTTLE_TIMEOUT_MS) {
       throw new Error('Admin throttle timed out while waiting for token');
     }
-    const waitMs = Math.max(100, Math.ceil((ADMIN_THROTTLE_WINDOW_SECONDS / ADMIN_REQUESTS_PER_MINUTE) * 1000));
-    await sleep(waitMs);
+    const tokensNeeded = Math.max(0, 1 - adminTokens);
+    const refillRatePerMs = ADMIN_REQUESTS_PER_MINUTE / (ADMIN_THROTTLE_WINDOW_SECONDS * 1000);
+    const timeUntilNextTokenMs = tokensNeeded > 0 ? Math.ceil(tokensNeeded / refillRatePerMs) : 1;
+    const remainingTimeoutMs = Math.max(1, ADMIN_THROTTLE_TIMEOUT_MS - elapsed);
+    await sleep(Math.min(timeUntilNextTokenMs, remainingTimeoutMs));
   }
 }
 
@@ -395,20 +400,27 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date
     const model = extractModelFromAdminItem(item);
     const tokensIn = safeNumber(item.input_tokens ?? item.prompt_tokens ?? item.usage?.prompt_tokens ?? 0);
     const tokensOut = safeNumber(item.output_tokens ?? item.completion_tokens ?? item.usage?.completion_tokens ?? 0);
-    const { amount, pricingKey, fallback } = calculateCost(model, tokensIn, tokensOut);
     let cost = safeNumber(item.cost ?? item.amount ?? item.usage?.total_cost ?? 0);
+    let pricingKey: string | undefined;
+    let pricingFallback: boolean | undefined;
     if (cost <= 0) {
-      cost = amount;
+      const estimate = calculateCost(model, tokensIn, tokensOut);
+      cost = estimate.amount;
+      pricingKey = estimate.pricingKey;
+      pricingFallback = estimate.fallback;
     }
-    return {
+    const usageEvent: UsageEventData = {
       model,
       tokensIn,
       tokensOut,
       costEstimate: Number(cost.toFixed(6)),
       timestamp,
-      pricingKey,
-      pricingFallback: fallback,
     };
+    if (pricingKey !== undefined || pricingFallback !== undefined) {
+      usageEvent.pricingKey = pricingKey;
+      usageEvent.pricingFallback = pricingFallback;
+    }
+    return usageEvent;
   });
 }
 
