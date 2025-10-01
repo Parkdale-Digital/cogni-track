@@ -103,6 +103,8 @@ interface UsageWindow {
   end: Date;
 }
 
+type FailureMarkedError = Error & { _usageFailureCounted?: boolean };
+
 export interface IngestionIssue {
   keyId: number;
   message: string;
@@ -830,7 +832,7 @@ export async function fetchAndStoreUsageForUser(
                 });
                 telemetry.failedKeys += 1;
                 const err = error instanceof Error ? error : new Error(String(error));
-                (err as Record<string, unknown>)._usageFailureCounted = true;
+                (err as FailureMarkedError)._usageFailureCounted = true;
                 throw err;
               }
             } else {
@@ -846,7 +848,7 @@ export async function fetchAndStoreUsageForUser(
                 error: error instanceof Error ? error.message : error,
               });
               const err = error instanceof Error ? error : new Error(String(error));
-              (err as Record<string, unknown>)._usageFailureCounted = true;
+              (err as FailureMarkedError)._usageFailureCounted = true;
               throw err;
             }
           }
@@ -982,7 +984,10 @@ export async function fetchAndStoreUsageForUser(
           });
         }
       } catch (error) {
-        const counted = typeof error === 'object' && error !== null && (error as Record<string, unknown>)._usageFailureCounted === true;
+        const counted =
+          typeof error === 'object' &&
+          error !== null &&
+          (error as FailureMarkedError)._usageFailureCounted === true;
         if (!counted) {
           telemetry.failedKeys += 1;
         }
