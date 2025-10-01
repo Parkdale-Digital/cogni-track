@@ -22,10 +22,12 @@ export default function RootLayout({
 
   const frontendApi = process.env.NEXT_PUBLIC_CLERK_FRONTEND_API ?? null;
 
-  if (!publishableKey && !frontendApi) {
-    console.warn(
-      "[Clerk] Clerk environment variables are not configured. Rendering without ClerkProvider."
-    );
+  if (!publishableKey) {
+    const message = frontendApi
+      ? "[Clerk] Detected NEXT_PUBLIC_CLERK_FRONTEND_API but no publishable key. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY or CLERK_PUBLISHABLE_KEY to enable Clerk. Rendering without ClerkProvider."
+      : "[Clerk] Clerk environment variables are not configured. Rendering without ClerkProvider.";
+
+    console.warn(message);
   }
 
   const appShell = (
@@ -46,13 +48,8 @@ export default function RootLayout({
     </html>
   );
 
-  return publishableKey || frontendApi ? (
-    <ClerkProvider
-      publishableKey={publishableKey ?? undefined}
-      frontendApi={frontendApi ?? undefined}
-    >
-      {appShell}
-    </ClerkProvider>
+  return publishableKey ? (
+    <ClerkProvider publishableKey={publishableKey}>{appShell}</ClerkProvider>
   ) : (
     appShell
   );
