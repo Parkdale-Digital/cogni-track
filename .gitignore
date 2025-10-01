@@ -35,6 +35,7 @@ Thumbs.db
 # Temporary files
 .cache/
 .temp/
+.tmp-run/
 
 # Coverage directory used by tools like istanbul
 coverage/
