@@ -60,6 +60,9 @@ coverage/
 replit.*
 AGENTS.md
 CLAUDE.md
-openAI-data/
+
 .env.*
 pnpm-lock.yaml
+
+openAI-data/
+screenshots/
