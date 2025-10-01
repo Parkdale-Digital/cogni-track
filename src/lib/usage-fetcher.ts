@@ -326,7 +326,7 @@ function optionalNumber(value: unknown): number | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
-  const n = safeNumber(value);
+  const n = Number(value);
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -517,7 +517,7 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], context: AdminU
       openaiApiKeyId: context.openaiApiKeyId,
       openaiUserId: context.openaiUserId,
       serviceTier: item.service_tier ?? context.serviceTier,
-      batch: typeof item.batch === 'boolean' ? item.batch : context.batch,
+      batch: item.batch ?? context.batch,
       numModelRequests: optionalNumber(item.num_model_requests) ?? context.numModelRequests,
       inputCachedTokens: optionalNumber(item.input_cached_tokens),
       inputUncachedTokens: optionalNumber(item.input_uncached_tokens),
@@ -617,7 +617,7 @@ async function fetchAdminUsage(
         openaiApiKeyId: record.api_key_id ?? undefined,
         openaiUserId: record.user_id ?? undefined,
         serviceTier: record.service_tier ?? undefined,
-        batch: typeof record.batch === 'boolean' ? record.batch : undefined,
+        batch: record.batch ?? undefined,
         numModelRequests: optionalNumber(record.num_model_requests),
       };
       events.push(...normalizeAdminResults(results, context));
