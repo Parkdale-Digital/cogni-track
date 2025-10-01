@@ -79,6 +79,12 @@ const OPENAI_ORGANIZATION = process.env.OPENAI_ORGANIZATION ?? process.env.OPENA
 const OPENAI_PROJECT = process.env.OPENAI_PROJECT ?? process.env.OPENAI_PROJECT_ID ?? undefined;
 const OPENAI_ADMIN_LIMIT = Math.max(1, Math.min(Number(process.env.OPENAI_ADMIN_LIMIT ?? 31), 31));
 const ENABLE_SIMULATED_USAGE = (process.env.ENABLE_SIMULATED_USAGE ?? 'false').toLowerCase() === 'true';
+const ADMIN_REQUESTS_PER_MINUTE = Math.max(
+  1,
+  Math.min(Number(process.env.OPENAI_ADMIN_REQUESTS_PER_MINUTE ?? 50), 60)
+);
+const ADMIN_MAX_BURST = Math.max(1, Number(process.env.OPENAI_ADMIN_MAX_BURST ?? 10));
+const ADMIN_THROTTLE_WINDOW_SECONDS = 60;
 
 type TokenPricing = {
   input: number;
@@ -123,6 +129,44 @@ if (pricingOverrideEnv) {
 }
 
 const PRICING_FALLBACK_WARNINGS = new Set<string>();
+let adminThrottleQueue: Promise<void> = Promise.resolve();
+let adminTokens = ADMIN_MAX_BURST;
+let adminLastRefill = Date.now();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function refillAdminTokens(): void {
+  const now = Date.now();
+  const elapsedSeconds = (now - adminLastRefill) / 1000;
+  if (elapsedSeconds <= 0) return;
+  const tokensToAdd = elapsedSeconds * (ADMIN_REQUESTS_PER_MINUTE / ADMIN_THROTTLE_WINDOW_SECONDS);
+  if (tokensToAdd > 0) {
+    adminTokens = Math.min(ADMIN_MAX_BURST, adminTokens + tokensToAdd);
+    adminLastRefill = now;
+  }
+}
+
+async function acquireAdminToken(): Promise<void> {
+  if (ADMIN_REQUESTS_PER_MINUTE <= 0) return;
+  while (true) {
+    refillAdminTokens();
+    if (adminTokens >= 1) {
+      adminTokens -= 1;
+      return;
+    }
+    const waitMs = Math.max(100, Math.ceil((ADMIN_THROTTLE_WINDOW_SECONDS / ADMIN_REQUESTS_PER_MINUTE) * 1000));
+    await sleep(waitMs);
+  }
+}
+
+function throttleAdminRequest(): Promise<void> {
+  adminThrottleQueue = adminThrottleQueue
+    .catch(() => undefined)
+    .then(() => acquireAdminToken());
+  return adminThrottleQueue;
+}
 
 interface UsageModeConfiguration {
   mode: OpenAIUsageMode;
@@ -255,13 +299,39 @@ function asDate(epochSeconds?: number, fallback?: Date): Date {
   return new Date(millis);
 }
 
-async function retryFetch(url: string, init: RequestInit, attempts = 3, baseDelayMs = 300): Promise<Response> {
+function parseRetryAfter(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, seconds * 1000);
+  }
+  const date = Date.parse(header);
+  if (!Number.isNaN(date)) {
+    return Math.max(0, date - Date.now());
+  }
+  return null;
+}
+
+async function retryFetch(
+  url: string,
+  init: RequestInit,
+  attempts = 3,
+  baseDelayMs = 300,
+  respectRetryAfter = false
+): Promise<Response> {
   let lastError: unknown = null;
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch(url, init);
       if (res.status === 429 || res.status >= 500) {
         lastError = new Error(`HTTP ${res.status}`);
+        if (respectRetryAfter) {
+          const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
+          if (retryAfterMs !== null && retryAfterMs > 0) {
+            await sleep(retryAfterMs);
+            continue;
+          }
+        }
       } else {
         return res;
       }
@@ -269,7 +339,7 @@ async function retryFetch(url: string, init: RequestInit, attempts = 3, baseDela
       lastError = err;
     }
     const jitter = Math.floor(Math.random() * 250);
-    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (i + 1) + jitter));
+    await sleep(baseDelayMs * (i + 1) + jitter);
   }
   throw lastError ?? new Error('Unknown fetch error');
 }
@@ -353,7 +423,8 @@ async function fetchAdminUsage(
   let safety = 0;
   while (safety < 20) {
     safety += 1;
-    const response = await retryFetch(current.toString(), { headers }, 3, 500);
+    await throttleAdminRequest();
+    const response = await retryFetch(current.toString(), { headers }, 3, 500, true);
     if (response.status === 401 || response.status === 403) {
       const body = await response.text();
       throw new OpenAIUsageError(body || 'Unauthorized', 'SCOPE_MISSING');

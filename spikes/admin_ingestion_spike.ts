@@ -372,7 +372,13 @@ async function runSpike() {
   const usage = await loadJson<AdminUsageResponse>('usage_completions_fixture.json');
   const usageEvents: UsageEvent[] = [];
   const pendingCompletionProjects: string[] = [];
+  const pendingCompletionServiceAccounts: string[] = [];
+  const pendingCompletionKeys: string[] = [];
+  const pendingCompletionCertificates: string[] = [];
   const unknownProjects = new Set<string>();
+  const unknownServiceAccounts = new Set<string>();
+  const unknownServiceAccountKeys = new Set<string>();
+  const unknownCertificates = new Set<string>();
 
   for (const bucket of usage.data ?? []) {
     const timestamp = resolveTimestamp(bucket);
@@ -380,6 +386,18 @@ async function runSpike() {
       const projectId = (result as any)?.metadata?.project_id;
       if (projectId) {
         pendingCompletionProjects.push(projectId);
+      }
+      const serviceAccountId = (result as any)?.metadata?.service_account_id;
+      if (serviceAccountId) {
+        pendingCompletionServiceAccounts.push(serviceAccountId);
+      }
+      const keyId = (result as any)?.metadata?.service_account_key_id;
+      if (keyId) {
+        pendingCompletionKeys.push(keyId);
+      }
+      const certificateId = (result as any)?.metadata?.certificate_id;
+      if (certificateId) {
+        pendingCompletionCertificates.push(certificateId);
       }
     }
     usageEvents.push(
@@ -407,9 +425,27 @@ async function runSpike() {
   ]);
 
   const knownProjectIds = new Set(projects.map((p) => p.id));
+  const knownServiceAccountIds = new Set(serviceAccounts.map((s) => s.id));
+  const knownServiceAccountKeyIds = new Set(keys.map((k) => k.id));
+  const knownCertificateIds = new Set(certificates.map((c) => c.id));
   for (const projectId of pendingCompletionProjects) {
     if (!knownProjectIds.has(projectId)) {
       unknownProjects.add(`usage/completions:${projectId}`);
+    }
+  }
+  for (const serviceAccountId of pendingCompletionServiceAccounts) {
+    if (!knownServiceAccountIds.has(serviceAccountId)) {
+      unknownServiceAccounts.add(`usage/completions:${serviceAccountId}`);
+    }
+  }
+  for (const keyId of pendingCompletionKeys) {
+    if (!knownServiceAccountKeyIds.has(keyId)) {
+      unknownServiceAccountKeys.add(`usage/completions:${keyId}`);
+    }
+  }
+  for (const certificateId of pendingCompletionCertificates) {
+    if (!knownCertificateIds.has(certificateId)) {
+      unknownCertificates.add(`usage/completions:${certificateId}`);
     }
   }
 
@@ -504,9 +540,23 @@ async function runSpike() {
       for (const page of pages) {
         for (const bucket of page.data ?? []) {
           for (const result of bucket.results ?? []) {
-            const projectId = (result as any)?.project_id ?? (result as any)?.metadata?.project_id ?? null;
+            const candidate = (field: string) =>
+              (result as any)?.[field] ?? (result as any)?.metadata?.[field] ?? null;
+            const projectId = candidate('project_id');
             if (projectId && !knownProjectIds.has(projectId)) {
               unknownProjects.add(`${endpoint}:${projectId}`);
+            }
+            const serviceAccountId = candidate('service_account_id');
+            if (serviceAccountId && !knownServiceAccountIds.has(serviceAccountId)) {
+              unknownServiceAccounts.add(`${endpoint}:${serviceAccountId}`);
+            }
+            const keyId = candidate('service_account_key_id');
+            if (keyId && !knownServiceAccountKeyIds.has(keyId)) {
+              unknownServiceAccountKeys.add(`${endpoint}:${keyId}`);
+            }
+            const certificateId = candidate('certificate_id');
+            if (certificateId && !knownCertificateIds.has(certificateId)) {
+              unknownCertificates.add(`${endpoint}:${certificateId}`);
             }
           }
         }
@@ -556,6 +606,9 @@ async function runSpike() {
     relationships,
     foreignKeyIssues: {
       unknownProjects: Array.from(unknownProjects),
+      unknownServiceAccounts: Array.from(unknownServiceAccounts),
+      unknownServiceAccountKeys: Array.from(unknownServiceAccountKeys),
+      unknownCertificates: Array.from(unknownCertificates),
     },
   };
 
@@ -567,11 +620,23 @@ async function runSpike() {
     additionalSummaries,
     relationships,
     unknownProjects: Array.from(unknownProjects),
+    unknownServiceAccounts: Array.from(unknownServiceAccounts),
+    unknownServiceAccountKeys: Array.from(unknownServiceAccountKeys),
+    unknownCertificates: Array.from(unknownCertificates),
   };
 }
 
 async function main() {
-  const { reportPath, usageSummary, additionalSummaries, relationships, unknownProjects } = await runSpike();
+  const {
+    reportPath,
+    usageSummary,
+    additionalSummaries,
+    relationships,
+    unknownProjects,
+    unknownServiceAccounts,
+    unknownServiceAccountKeys,
+    unknownCertificates,
+  } = await runSpike();
 
   const issues: string[] = [];
   if (usageSummary.cursor.hasMore) {
@@ -595,6 +660,15 @@ async function main() {
   if (unknownProjects.length) {
     issues.push(`Unknown project references detected: ${unknownProjects.join(', ')}`);
   }
+  if (unknownServiceAccounts.length) {
+    issues.push(`Unknown service accounts detected: ${unknownServiceAccounts.join(', ')}`);
+  }
+  if (unknownServiceAccountKeys.length) {
+    issues.push(`Unknown service account keys detected: ${unknownServiceAccountKeys.join(', ')}`);
+  }
+  if (unknownCertificates.length) {
+    issues.push(`Unknown certificates detected: ${unknownCertificates.join(', ')}`);
+  }
 
   const summary = {
     reportPath,
@@ -603,6 +677,9 @@ async function main() {
     relationshipIssues: issues,
     foreignKeyIssues: {
       unknownProjects,
+      unknownServiceAccounts,
+      unknownServiceAccountKeys,
+      unknownCertificates,
     },
   };
 

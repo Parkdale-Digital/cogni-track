@@ -28,3 +28,18 @@
   - Code interpreter sessions: num_sessions=6
   - Costs: amount_value=15.55 (line items: usage.completions=12.34, usage.images=3.21; currency: usd=15.55)
 - Relationship issues: none detected.
+## 2025-10-01 Pagination + Rate Limit Replay
+- Command: `pnpm exec tsx spikes/admin_ingestion_spike.ts`
+- Usage summary: 1 bucket, 2 raw events deduped to 1 (tokensIn=2849, tokensOut=912, costEstimate=0.003918, cursor.hasMore=false)
+- Additional endpoint totals now cover paginated fixtures (`pagesProcessed=2` each); unknown project references remain empty.
+- Multi-page metrics:
+  - Embeddings: input_tokens=3328, num_model_requests=5
+  - Moderations: input_tokens=192, num_model_requests=3
+  - Images: images=6 (bySize 512x512=4, 1024x1024=2; bySource image.generation=4, image.edit=2)
+  - Audio speeches: characters=4700, num_model_requests=4
+  - Audio transcriptions: seconds=1020, num_model_requests=6
+  - Vector stores: usage_bytes=1,572,864
+  - Code interpreter sessions: num_sessions=9
+  - Costs: amount_value=21.22 (line items usage.completions=12.34, usage.images=3.21, usage.audio=5.67)
+- Rate limiting: token-bucket throttle (`OPENAI_ADMIN_REQUESTS_PER_MINUTE=50`, `OPENAI_ADMIN_MAX_BURST=10`) active; Retry-After respected.
+- Relationship/foreign key issues: none detected.

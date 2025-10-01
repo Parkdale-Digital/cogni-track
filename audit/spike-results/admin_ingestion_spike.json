@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generatedAt": "2025-09-30T23:49:18.116Z",
+    "generatedAt": "2025-10-01T00:58:17.120Z",
     "fixtures": {
       "usage": "usage_completions_fixture.json",
       "usageVariants": {
@@ -31,7 +31,7 @@
     "cursor": {
       "endpoint": "usage/completions",
       "nextPage": null,
-      "lastSyncedAt": "2025-09-30T23:49:18.105Z",
+      "lastSyncedAt": "2025-10-01T00:58:17.106Z",
       "hasMore": false
     }
   },
@@ -179,6 +179,9 @@
     "missingCertificateIds": []
   },
   "foreignKeyIssues": {
-    "unknownProjects": []
+    "unknownProjects": [],
+    "unknownServiceAccounts": [],
+    "unknownServiceAccountKeys": [],
+    "unknownCertificates": []
   }
 }
