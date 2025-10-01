@@ -58,10 +58,13 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
 
 ## Implementation Sequence (Next Pass)
 1. **Schema prep** – author additive migration introducing new columns (`window_start`, `window_end`, project/key/tier metadata, cached token fields) and update `openai_admin_cursors` helper to generate per-key endpoint identifiers. ✅ (2025-10-01 via `drizzle/0003_usage_event_windows.sql`)
-2. **Fetcher refactor** – extract per-day helper, integrate feature flag, and extend telemetry payloads; wire into cron/backfill entry points. (Partially complete: ingestion now writes window + metadata; TODO per-day helper + feature flag + telemetry.)
+2. **Fetcher refactor** – extract per-day helper, integrate feature flag, and extend telemetry payloads; wire into cron/backfill entry points. (In progress: ingestion now writes window + metadata and upserts; TODO per-day helper + feature flag + telemetry + cron wiring.)
 3. **Backfill tooling** – implement CLI/server action for historical load, including throttled loops and progress logging.
 4. **UI & API updates** – expose new fields in `/api/usage`, update analytics components, and add pagination/filters.
 5. **Parity automation** – build diff job against OpenAI exports, integrate into monitoring before flipping the feature flag.
+
+### Pending Validation
+- Drizzle snapshot regeneration (`pnpm drizzle-kit generate`) awaiting staging environment with `DATABASE_URL` access.
 
 ## Open Follow-Ups
 - Verify Vercel Cron header injection in staging before production rollout.
