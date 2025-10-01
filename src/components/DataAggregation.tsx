@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 import { cn } from '@/lib/utils';
@@ -32,6 +32,8 @@ interface DataAggregationProps {
 export default function DataAggregation({ events, className }: DataAggregationProps) {
   const [timeframe, setTimeframe] = useState<'weekly' | 'monthly'>('weekly');
   const [viewType, setViewType] = useState<'overview' | 'breakdown'>('overview');
+  const timeframeLabelId = useId();
+  const viewLabelId = useId();
 
   const aggregateData = (groupBy: 'weekly' | 'monthly'): AggregatedData[] => {
     const groups: Record<string, AggregatedData> = {};
@@ -118,9 +120,15 @@ export default function DataAggregation({ events, className }: DataAggregationPr
         </div>
         <div className="flex flex-wrap items-start gap-4 text-left sm:justify-end">
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Timeframe</span>
+            <span
+              id={timeframeLabelId}
+              className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              Timeframe
+            </span>
             <ToggleGroup
               label="Timeframe"
+              labelId={timeframeLabelId}
               options={[
                 { value: 'weekly', label: 'Weekly' },
                 { value: 'monthly', label: 'Monthly' }
@@ -130,9 +138,15 @@ export default function DataAggregation({ events, className }: DataAggregationPr
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">View</span>
+            <span
+              id={viewLabelId}
+              className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              View
+            </span>
             <ToggleGroup
               label="View"
+              labelId={viewLabelId}
               options={[
                 { value: 'overview', label: 'Overview' },
                 { value: 'breakdown', label: 'Breakdown' }
@@ -254,15 +268,20 @@ interface ToggleGroupOption {
 
 interface ToggleGroupProps {
   label: string;
+  labelId?: string;
   options: ToggleGroupOption[];
   value: string;
   onChange: (value: string) => void;
 }
 
-function ToggleGroup({ label, options, value, onChange }: ToggleGroupProps) {
+function ToggleGroup({ label, labelId, options, value, onChange }: ToggleGroupProps) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-1">
-      <span className="sr-only">{label}</span>
+    <div
+      role="group"
+      aria-label={labelId ? undefined : label}
+      aria-labelledby={labelId}
+      className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-1"
+    >
       {options.map((option) => {
         const isActive = option.value === value;
         return (
