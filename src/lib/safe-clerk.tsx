@@ -35,7 +35,7 @@ export function useSafeUser(): UseUserReturn {
 
 export function SafeSignedIn({ children }: { children: ReactNode }) {
   if (!hasClerkConfig) {
-    return <>{children}</>;
+    return null;
   }
 
   return <SignedIn>{children}</SignedIn>;
