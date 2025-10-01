@@ -34,7 +34,7 @@ export default function UsageChart({ data, type }: UsageChartProps) {
     return value.toString();
   };
 
-  const strokeColor = type === 'tokens' ? 'hsl(var(--primary))' : 'hsl(var(--accent))';
+  const strokeColor = type === 'tokens' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))';
 
   return (
     <div className="h-80 rounded-lg border border-border bg-card p-6 shadow-sm">
