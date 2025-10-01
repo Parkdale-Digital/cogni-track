@@ -98,6 +98,11 @@ export interface UsageEventData {
   outputImageTokens?: number;
 }
 
+interface UsageWindow {
+  start: Date;
+  end: Date;
+}
+
 export interface IngestionIssue {
   keyId: number;
   message: string;
@@ -112,6 +117,8 @@ export interface IngestionTelemetry {
   failedKeys: number;
   storedEvents: number;
   skippedEvents: number;
+  updatedEvents: number;
+  windowsProcessed: number;
   issues: IngestionIssue[];
 }
 
@@ -136,6 +143,8 @@ const ADMIN_THROTTLE_TIMEOUT_MS = Math.max(
   1000,
   asFiniteNumber(process.env.OPENAI_ADMIN_THROTTLE_TIMEOUT_MS, 60000)
 );
+const ENABLE_DAILY_USAGE_WINDOWS =
+  (process.env.ENABLE_DAILY_USAGE_WINDOWS ?? 'false').toLowerCase() === 'true';
 
 type TokenPricing = {
   input: number;
@@ -373,6 +382,24 @@ function startOfDayUtc(date: Date): Date {
 
 function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function buildDailyWindows(startDate: Date, endDate: Date): UsageWindow[] {
+  if (startDate > endDate) {
+    return [];
+  }
+
+  const windows: UsageWindow[] = [];
+  let cursor = startOfDayUtc(startDate);
+  const lastStart = startOfDayUtc(endDate);
+
+  while (cursor <= lastStart) {
+    const windowEnd = addDays(cursor, 1);
+    windows.push({ start: cursor, end: windowEnd });
+    cursor = windowEnd;
+  }
+
+  return windows;
 }
 
 function parseRetryAfter(header: string | null): number | null {
@@ -717,6 +744,8 @@ export async function fetchAndStoreUsageForUser(
       failedKeys: 0,
       storedEvents: 0,
       skippedEvents: 0,
+      updatedEvents: 0,
+      windowsProcessed: 0,
       issues: [],
     };
 
@@ -737,116 +766,118 @@ export async function fetchAndStoreUsageForUser(
         });
 
         const usageConfig = deriveUsageConfigurationForKey(keyRecord);
-        let usageData: UsageEventData[] = [];
+        const windowRanges = ENABLE_DAILY_USAGE_WINDOWS
+          ? buildDailyWindows(startDate, endDate)
+          : [{ start: startDate, end: endDate }];
+
         let usedSimulation = false;
-        try {
-          usageData = await fetchOpenAIUsage(decryptedKey, startDate, endDate, usageConfig);
-        } catch (error) {
-          if (error instanceof UsageConfigurationError) {
-            telemetry.failedKeys += 1;
-            telemetry.issues.push({
-              keyId: keyRecord.id,
-              message: error.message,
-              code: 'CONFIGURATION_ERROR',
-            });
-            console.error('[usage-fetcher] Missing configuration for admin usage mode', {
-              userId,
-              keyId: keyRecord.id,
-              error: error.message,
-            });
-            continue;
-          }
-          if (error instanceof OpenAIUsageError && (error.code === 'SCOPE_MISSING' || error.code === 'UNAUTHORIZED')) {
-            if (ENABLE_SIMULATED_USAGE) {
+        let newEventsCount = 0;
+        let updatedEventsCount = 0;
+        let totalFetched = 0;
+        let processedWindows = 0;
+        const fallbackModels = new Set<string>();
+        let skipKey = false;
+
+        for (const windowRange of windowRanges) {
+          let usageData: UsageEventData[] = [];
+          let usedSimulationThisWindow = false;
+          try {
+            usageData = await fetchOpenAIUsage(decryptedKey, windowRange.start, windowRange.end, usageConfig);
+          } catch (error) {
+            if (error instanceof UsageConfigurationError) {
+              telemetry.failedKeys += 1;
               telemetry.issues.push({
                 keyId: keyRecord.id,
                 message: error.message,
-                code: error.code,
+                code: 'CONFIGURATION_ERROR',
               });
-              usedSimulation = true;
-              telemetry.simulatedKeys += 1;
-              console.warn(`[usage-fetcher] OpenAI permissions issue; using simulated data`, {
+              console.error('[usage-fetcher] Missing configuration for admin usage mode', {
                 userId,
                 keyId: keyRecord.id,
-                code: error.code,
+                windowStart: windowRange.start.toISOString(),
+                error: error.message,
               });
-              usageData = generateSimulatedUsage(startDate, endDate);
+              skipKey = true;
+              break;
+            }
+            if (error instanceof OpenAIUsageError && (error.code === 'SCOPE_MISSING' || error.code === 'UNAUTHORIZED')) {
+              if (ENABLE_SIMULATED_USAGE) {
+                telemetry.issues.push({
+                  keyId: keyRecord.id,
+                  message: error.message,
+                  code: error.code,
+                });
+                if (!usedSimulation) {
+                  telemetry.simulatedKeys += 1;
+                }
+                usedSimulation = true;
+                usedSimulationThisWindow = true;
+                console.warn(`[usage-fetcher] OpenAI permissions issue; using simulated data`, {
+                  userId,
+                  keyId: keyRecord.id,
+                  code: error.code,
+                  windowStart: windowRange.start.toISOString(),
+                });
+                usageData = generateSimulatedUsage(windowRange.start, windowRange.end);
+              } else {
+                console.error(`[usage-fetcher] OpenAI permissions issue; aborting ingestion`, {
+                  userId,
+                  keyId: keyRecord.id,
+                  code: error.code,
+                  windowStart: windowRange.start.toISOString(),
+                });
+                telemetry.failedKeys += 1;
+                throw error;
+              }
             } else {
-              console.error(`[usage-fetcher] OpenAI permissions issue; aborting ingestion`, {
+              telemetry.failedKeys += 1;
+              telemetry.issues.push({
+                keyId: keyRecord.id,
+                message: error instanceof Error ? error.message : 'Unknown provider error',
+              });
+              console.error(`[usage-fetcher] Unexpected provider failure`, {
                 userId,
                 keyId: keyRecord.id,
-                code: error.code,
+                windowStart: windowRange.start.toISOString(),
+                error: error instanceof Error ? error.message : error,
               });
               throw error;
             }
-          } else {
-            telemetry.failedKeys += 1;
-            telemetry.issues.push({
-              keyId: keyRecord.id,
-              message: error instanceof Error ? error.message : 'Unknown provider error',
-            });
-            console.error(`[usage-fetcher] Unexpected provider failure`, {
-              userId,
-              keyId: keyRecord.id,
-              error: error instanceof Error ? error.message : error,
-            });
-            throw error;
           }
-        }
 
-        let newEventsCount = 0;
-        const fallbackModels = new Set<string>();
-        for (const usage of usageData) {
-          const windowStart = usage.windowStart ? new Date(usage.windowStart) : startOfDayUtc(usage.timestamp);
-          const windowEnd = usage.windowEnd ? new Date(usage.windowEnd) : addDays(windowStart, 1);
-          const existingEvent = await db
-            .select()
-            .from(usageEvents)
-            .where(and(
-              eq(usageEvents.keyId, keyRecord.id),
-              eq(usageEvents.model, usage.model),
-              eq(usageEvents.windowStart, windowStart),
-            ))
-            .limit(1);
+          if (skipKey) {
+            break;
+          }
 
-          if (existingEvent.length === 0) {
-            await db.insert(usageEvents).values({
-              keyId: keyRecord.id,
-              model: usage.model,
-              tokensIn: usage.tokensIn,
-              tokensOut: usage.tokensOut,
-              costEstimate: usage.costEstimate.toFixed(6),
-              timestamp: usage.timestamp,
-              windowStart,
-              windowEnd,
-              projectId: usage.projectId,
-              openaiUserId: usage.openaiUserId,
-              openaiApiKeyId: usage.openaiApiKeyId,
-              serviceTier: usage.serviceTier,
-              batch: usage.batch,
-              numModelRequests: usage.numModelRequests,
-              inputCachedTokens: usage.inputCachedTokens,
-              inputUncachedTokens: usage.inputUncachedTokens,
-              inputTextTokens: usage.inputTextTokens,
-              outputTextTokens: usage.outputTextTokens,
-              inputCachedTextTokens: usage.inputCachedTextTokens,
-              inputAudioTokens: usage.inputAudioTokens,
-              inputCachedAudioTokens: usage.inputCachedAudioTokens,
-              outputAudioTokens: usage.outputAudioTokens,
-              inputImageTokens: usage.inputImageTokens,
-              inputCachedImageTokens: usage.inputCachedImageTokens,
-              outputImageTokens: usage.outputImageTokens,
-            });
-            newEventsCount += 1;
-            telemetry.storedEvents += 1;
-          } else {
-            await db
-              .update(usageEvents)
-              .set({
+          if (usedSimulationThisWindow) {
+            usedSimulation = true;
+          }
+
+          totalFetched += usageData.length;
+          processedWindows += 1;
+
+          for (const usage of usageData) {
+            const windowStart = usage.windowStart ? new Date(usage.windowStart) : startOfDayUtc(usage.timestamp);
+            const windowEnd = usage.windowEnd ? new Date(usage.windowEnd) : addDays(windowStart, 1);
+            const existingEvent = await db
+              .select()
+              .from(usageEvents)
+              .where(and(
+                eq(usageEvents.keyId, keyRecord.id),
+                eq(usageEvents.model, usage.model),
+                eq(usageEvents.windowStart, windowStart),
+              ))
+              .limit(1);
+
+            if (existingEvent.length === 0) {
+              await db.insert(usageEvents).values({
+                keyId: keyRecord.id,
+                model: usage.model,
                 tokensIn: usage.tokensIn,
                 tokensOut: usage.tokensOut,
                 costEstimate: usage.costEstimate.toFixed(6),
                 timestamp: usage.timestamp,
+                windowStart,
                 windowEnd,
                 projectId: usage.projectId,
                 openaiUserId: usage.openaiUserId,
@@ -865,32 +896,75 @@ export async function fetchAndStoreUsageForUser(
                 inputImageTokens: usage.inputImageTokens,
                 inputCachedImageTokens: usage.inputCachedImageTokens,
                 outputImageTokens: usage.outputImageTokens,
-              })
-              .where(and(
-                eq(usageEvents.keyId, keyRecord.id),
-                eq(usageEvents.model, usage.model),
-                eq(usageEvents.windowStart, windowStart),
-              ));
-            telemetry.skippedEvents += 1;
-          }
+              });
+              newEventsCount += 1;
+              telemetry.storedEvents += 1;
+            } else {
+              await db
+                .update(usageEvents)
+                .set({
+                  tokensIn: usage.tokensIn,
+                  tokensOut: usage.tokensOut,
+                  costEstimate: usage.costEstimate.toFixed(6),
+                  timestamp: usage.timestamp,
+                  windowEnd,
+                  projectId: usage.projectId,
+                  openaiUserId: usage.openaiUserId,
+                  openaiApiKeyId: usage.openaiApiKeyId,
+                  serviceTier: usage.serviceTier,
+                  batch: usage.batch,
+                  numModelRequests: usage.numModelRequests,
+                  inputCachedTokens: usage.inputCachedTokens,
+                  inputUncachedTokens: usage.inputUncachedTokens,
+                  inputTextTokens: usage.inputTextTokens,
+                  outputTextTokens: usage.outputTextTokens,
+                  inputCachedTextTokens: usage.inputCachedTextTokens,
+                  inputAudioTokens: usage.inputAudioTokens,
+                  inputCachedAudioTokens: usage.inputCachedAudioTokens,
+                  outputAudioTokens: usage.outputAudioTokens,
+                  inputImageTokens: usage.inputImageTokens,
+                  inputCachedImageTokens: usage.inputCachedImageTokens,
+                  outputImageTokens: usage.outputImageTokens,
+                })
+                .where(and(
+                  eq(usageEvents.keyId, keyRecord.id),
+                  eq(usageEvents.model, usage.model),
+                  eq(usageEvents.windowStart, windowStart),
+                ));
+              telemetry.skippedEvents += 1;
+              telemetry.updatedEvents += 1;
+              updatedEventsCount += 1;
+            }
 
-          if (usage.pricingFallback) {
-            fallbackModels.add(usage.model);
+            if (usage.pricingFallback) {
+              fallbackModels.add(usage.model);
+            }
           }
         }
+
+        if (skipKey) {
+          continue;
+        }
+
+        telemetry.windowsProcessed += processedWindows;
 
         if (usedSimulation) {
           console.log(`[usage-fetcher] Stored simulated usage events`, {
             userId,
             keyId: keyRecord.id,
-            newEvents: newEventsCount,
+            newBuckets: newEventsCount,
+            updatedBuckets: updatedEventsCount,
+            windows: processedWindows,
+            fetched: totalFetched,
           });
         } else {
           console.log(`[usage-fetcher] Stored usage events`, {
             userId,
             keyId: keyRecord.id,
-            newEvents: newEventsCount,
-            duplicates: usageData.length - newEventsCount,
+            newBuckets: newEventsCount,
+            updatedBuckets: updatedEventsCount,
+            windows: processedWindows,
+            fetched: totalFetched,
           });
         }
 

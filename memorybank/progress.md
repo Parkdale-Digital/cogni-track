@@ -23,3 +23,4 @@
 2025-10-01 – Extended `src/lib/usage-fetcher.ts` to populate new `usage_events` metadata: admin/standard fetchers assign `window_start/window_end`, capture OpenAI project/key/tier context, cached token splits, and dedupe on `(keyId, model, windowStart)` before inserts.
 2025-10-01 – Converted ingestion dedupe to an upsert (update on existing rows) and tightened `usage_admin_bucket_idx` with a partial index to avoid NULL `window_start`; addressed reviewer feedback about redundant `batch` coalescing.
 2025-10-01 – Snapshot regeneration pending; Drizzle tooling requires DATABASE_URL which is not available in sandbox. Documented TODO to rerun `pnpm drizzle-kit generate` in staging.
+2025-10-01 – Added feature flag `ENABLE_DAILY_USAGE_WINDOWS`; `fetchAndStoreUsageForUser` now iterates per-day windows, aggregates telemetry (`updatedEvents`, `windowsProcessed`), and upserts each bucket with simulation fallback scoped per window.
