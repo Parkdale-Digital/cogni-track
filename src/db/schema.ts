@@ -54,7 +54,16 @@ export const usageEvents = pgTable("usage_events", {
   // NOTE: Column order mirrors the lookup order in fetchAndStoreUsageForUser (keyId → model → windowStart)
   // so modifications should evaluate query performance and dedupe semantics together.
   usageAdminBucketIdx: uniqueIndex("usage_admin_bucket_idx")
-    .on(usageEvents.keyId, usageEvents.model, usageEvents.windowStart)
+    .on(
+      usageEvents.keyId,
+      usageEvents.model,
+      usageEvents.windowStart,
+      sql`COALESCE(${usageEvents.projectId}, '')`,
+      sql`COALESCE(${usageEvents.openaiApiKeyId}, '')`,
+      sql`COALESCE(${usageEvents.openaiUserId}, '')`,
+      sql`COALESCE(${usageEvents.serviceTier}, '')`,
+      sql`COALESCE(${usageEvents.batch}, false)`
+    )
     .where(sql`window_start IS NOT NULL`),
 }));
 

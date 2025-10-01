@@ -1,7 +1,7 @@
 import { decrypt } from './encryption';
 import { getDb } from './database';
 import { providerKeys, usageEvents } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 
 type OpenAIUsageMode = 'standard' | 'admin';
 
@@ -867,80 +867,73 @@ export async function fetchAndStoreUsageForUser(
           for (const usage of usageData) {
             const windowStart = usage.windowStart ?? startOfDayUtc(usage.timestamp);
             const windowEnd = usage.windowEnd ?? addDays(windowStart, 1);
-            const existingEvent = await db
-              .select()
-              .from(usageEvents)
-              .where(and(
-                eq(usageEvents.keyId, keyRecord.id),
-                eq(usageEvents.model, usage.model),
-                eq(usageEvents.windowStart, windowStart),
-              ))
-              .limit(1);
+            const insertPayload = {
+              keyId: keyRecord.id,
+              model: usage.model,
+              tokensIn: usage.tokensIn,
+              tokensOut: usage.tokensOut,
+              costEstimate: usage.costEstimate.toFixed(6),
+              timestamp: usage.timestamp,
+              windowStart,
+              windowEnd,
+              projectId: usage.projectId ?? null,
+              openaiUserId: usage.openaiUserId ?? null,
+              openaiApiKeyId: usage.openaiApiKeyId ?? null,
+              serviceTier: usage.serviceTier ?? null,
+              batch: usage.batch ?? null,
+              numModelRequests: usage.numModelRequests ?? null,
+              inputCachedTokens: usage.inputCachedTokens ?? null,
+              inputUncachedTokens: usage.inputUncachedTokens ?? null,
+              inputTextTokens: usage.inputTextTokens ?? null,
+              outputTextTokens: usage.outputTextTokens ?? null,
+              inputCachedTextTokens: usage.inputCachedTextTokens ?? null,
+              inputAudioTokens: usage.inputAudioTokens ?? null,
+              inputCachedAudioTokens: usage.inputCachedAudioTokens ?? null,
+              outputAudioTokens: usage.outputAudioTokens ?? null,
+              inputImageTokens: usage.inputImageTokens ?? null,
+              inputCachedImageTokens: usage.inputCachedImageTokens ?? null,
+              outputImageTokens: usage.outputImageTokens ?? null,
+            };
 
-            if (existingEvent.length === 0) {
-              await db.insert(usageEvents).values({
-                keyId: keyRecord.id,
-                model: usage.model,
-                tokensIn: usage.tokensIn,
-                tokensOut: usage.tokensOut,
-                costEstimate: usage.costEstimate.toFixed(6),
-                timestamp: usage.timestamp,
-                windowStart,
-                windowEnd,
-                projectId: usage.projectId,
-                openaiUserId: usage.openaiUserId,
-                openaiApiKeyId: usage.openaiApiKeyId,
-                serviceTier: usage.serviceTier,
-                batch: usage.batch,
-                numModelRequests: usage.numModelRequests,
-                inputCachedTokens: usage.inputCachedTokens,
-                inputUncachedTokens: usage.inputUncachedTokens,
-                inputTextTokens: usage.inputTextTokens,
-                outputTextTokens: usage.outputTextTokens,
-                inputCachedTextTokens: usage.inputCachedTextTokens,
-                inputAudioTokens: usage.inputAudioTokens,
-                inputCachedAudioTokens: usage.inputCachedAudioTokens,
-                outputAudioTokens: usage.outputAudioTokens,
-                inputImageTokens: usage.inputImageTokens,
-                inputCachedImageTokens: usage.inputCachedImageTokens,
-                outputImageTokens: usage.outputImageTokens,
-              });
+            const result = await db
+              .insert(usageEvents)
+              .values(insertPayload)
+              .onConflictDoUpdate({
+                target: usageEvents.usageAdminBucketIdx,
+                set: {
+                  tokensIn: insertPayload.tokensIn,
+                  tokensOut: insertPayload.tokensOut,
+                  costEstimate: insertPayload.costEstimate,
+                  timestamp: insertPayload.timestamp,
+                  windowEnd: insertPayload.windowEnd,
+                  projectId: insertPayload.projectId,
+                  openaiUserId: insertPayload.openaiUserId,
+                  openaiApiKeyId: insertPayload.openaiApiKeyId,
+                  serviceTier: insertPayload.serviceTier,
+                  batch: insertPayload.batch,
+                  numModelRequests: insertPayload.numModelRequests,
+                  inputCachedTokens: insertPayload.inputCachedTokens,
+                  inputUncachedTokens: insertPayload.inputUncachedTokens,
+                  inputTextTokens: insertPayload.inputTextTokens,
+                  outputTextTokens: insertPayload.outputTextTokens,
+                  inputCachedTextTokens: insertPayload.inputCachedTextTokens,
+                  inputAudioTokens: insertPayload.inputAudioTokens,
+                  inputCachedAudioTokens: insertPayload.inputCachedAudioTokens,
+                  outputAudioTokens: insertPayload.outputAudioTokens,
+                  inputImageTokens: insertPayload.inputImageTokens,
+                  inputCachedImageTokens: insertPayload.inputCachedImageTokens,
+                  outputImageTokens: insertPayload.outputImageTokens,
+                },
+              })
+              .returning({ inserted: sql<boolean>`(xmax = 0)` });
+
+            const wasInserted = result[0]?.inserted ?? false;
+            if (wasInserted) {
               newEventsCount += 1;
               telemetry.storedEvents += 1;
             } else {
-              await db
-                .update(usageEvents)
-                .set({
-                  tokensIn: usage.tokensIn,
-                  tokensOut: usage.tokensOut,
-                  costEstimate: usage.costEstimate.toFixed(6),
-                  timestamp: usage.timestamp,
-                  windowEnd,
-                  projectId: usage.projectId,
-                  openaiUserId: usage.openaiUserId,
-                  openaiApiKeyId: usage.openaiApiKeyId,
-                  serviceTier: usage.serviceTier,
-                  batch: usage.batch,
-                  numModelRequests: usage.numModelRequests,
-                  inputCachedTokens: usage.inputCachedTokens,
-                  inputUncachedTokens: usage.inputUncachedTokens,
-                  inputTextTokens: usage.inputTextTokens,
-                  outputTextTokens: usage.outputTextTokens,
-                  inputCachedTextTokens: usage.inputCachedTextTokens,
-                  inputAudioTokens: usage.inputAudioTokens,
-                  inputCachedAudioTokens: usage.inputCachedAudioTokens,
-                  outputAudioTokens: usage.outputAudioTokens,
-                  inputImageTokens: usage.inputImageTokens,
-                  inputCachedImageTokens: usage.inputCachedImageTokens,
-                  outputImageTokens: usage.outputImageTokens,
-                })
-                .where(and(
-                  eq(usageEvents.keyId, keyRecord.id),
-                  eq(usageEvents.model, usage.model),
-                  eq(usageEvents.windowStart, windowStart),
-                ));
-              telemetry.updatedEvents += 1;
               updatedEventsCount += 1;
+              telemetry.updatedEvents += 1;
             }
 
             if (usage.pricingFallback) {

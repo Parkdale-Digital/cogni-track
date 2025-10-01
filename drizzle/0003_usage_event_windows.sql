@@ -26,7 +26,16 @@ ALTER TABLE "usage_events"
 
 DROP INDEX IF EXISTS "usage_admin_bucket_idx";
 CREATE UNIQUE INDEX IF NOT EXISTS "usage_admin_bucket_idx"
-    ON "usage_events" ("key_id", "model", "window_start")
+    ON "usage_events" (
+        "key_id",
+        "model",
+        "window_start",
+        COALESCE("project_id", ''),
+        COALESCE("openai_api_key_id", ''),
+        COALESCE("openai_user_id", ''),
+        COALESCE("service_tier", ''),
+        COALESCE("batch", false)
+    )
     WHERE "window_start" IS NOT NULL;
 
 COMMIT;
