@@ -61,3 +61,4 @@ AGENTS.md
 CLAUDE.md
 openAI-data/
 .env.*
+pnpm-lock.yaml
