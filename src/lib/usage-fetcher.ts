@@ -194,6 +194,11 @@ const PRICING_FALLBACK_WARNINGS = new Set<string>();
 let adminThrottleQueue: Promise<void> = Promise.resolve();
 let adminTokens = ADMIN_MAX_BURST;
 let adminLastRefill = Date.now();
+const usageAdminBucketConstraint = (usageEvents as typeof usageEvents & {
+  usageAdminBucketIdx?: unknown;
+}).usageAdminBucketIdx;
+// Drizzle's type surface drops index metadata once expression columns are involved; cast back so we can
+// reference the named constraint when issuing ON CONFLICT upserts.
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -899,7 +904,7 @@ export async function fetchAndStoreUsageForUser(
               .insert(usageEvents)
               .values(insertPayload)
               .onConflictDoUpdate({
-                target: usageEvents.usageAdminBucketIdx,
+                target: usageAdminBucketConstraint as any,
                 set: {
                   tokensIn: insertPayload.tokensIn,
                   tokensOut: insertPayload.tokensOut,

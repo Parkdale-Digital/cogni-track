@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generatedAt": "2025-10-01T19:10:24.886Z",
+    "generatedAt": "2025-10-01T19:24:45.548Z",
     "fixtures": {
       "usage": [
         "usage_completions_fixture.json",
@@ -34,7 +34,7 @@
     "cursor": {
       "endpoint": "usage/completions",
       "nextPage": null,
-      "lastSyncedAt": "2025-10-01T19:10:24.882Z",
+      "lastSyncedAt": "2025-10-01T19:24:45.543Z",
       "hasMore": false
     }
   },
