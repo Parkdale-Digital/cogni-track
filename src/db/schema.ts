@@ -36,7 +36,7 @@ export const usageEvents = pgTable("usage_events", {
   openaiUserId: text("openai_user_id"),
   openaiApiKeyId: text("openai_api_key_id"),
   serviceTier: text("service_tier"),
-  batch: boolean("batch").default(false),
+  batch: boolean("batch"),
   numModelRequests: integer("num_model_requests"),
   inputCachedTokens: integer("input_cached_tokens"),
   inputUncachedTokens: integer("input_uncached_tokens"),

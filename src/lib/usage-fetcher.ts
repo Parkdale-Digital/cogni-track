@@ -24,6 +24,20 @@ interface OpenAIAdminResultItem {
   output_tokens?: number;
   prompt_tokens?: number;
   completion_tokens?: number;
+  num_model_requests?: number;
+  service_tier?: string;
+  batch?: boolean;
+  input_cached_tokens?: number;
+  input_uncached_tokens?: number;
+  input_text_tokens?: number;
+  output_text_tokens?: number;
+  input_cached_text_tokens?: number;
+  input_audio_tokens?: number;
+  input_cached_audio_tokens?: number;
+  output_audio_tokens?: number;
+  input_image_tokens?: number;
+  input_cached_image_tokens?: number;
+  output_image_tokens?: number;
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
@@ -34,6 +48,14 @@ interface OpenAIAdminResultItem {
 interface OpenAIAdminUsageRecord {
   start_time?: number;
   start_time_iso?: string;
+  end_time?: number;
+  end_time_iso?: string;
+  project_id?: string;
+  api_key_id?: string;
+  user_id?: string;
+  service_tier?: string;
+  batch?: boolean;
+  num_model_requests?: number;
   results?: OpenAIAdminResultItem[];
 }
 
@@ -55,6 +77,25 @@ export interface UsageEventData {
   timestamp: Date;
   pricingKey?: string;
   pricingFallback?: boolean;
+  windowStart?: Date;
+  windowEnd?: Date;
+  projectId?: string;
+  openaiUserId?: string;
+  openaiApiKeyId?: string;
+  serviceTier?: string;
+  batch?: boolean;
+  numModelRequests?: number;
+  inputCachedTokens?: number;
+  inputUncachedTokens?: number;
+  inputTextTokens?: number;
+  outputTextTokens?: number;
+  inputCachedTextTokens?: number;
+  inputAudioTokens?: number;
+  inputCachedAudioTokens?: number;
+  outputAudioTokens?: number;
+  inputImageTokens?: number;
+  inputCachedImageTokens?: number;
+  outputImageTokens?: number;
 }
 
 export interface IngestionIssue {
@@ -272,6 +313,14 @@ function safeNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function optionalNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  const n = safeNumber(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function decryptKeyMetadata(record: typeof providerKeys.$inferSelect): { organizationId?: string; projectId?: string } {
   if (!record.encryptedMetadata || !record.metadataIv || !record.metadataAuthTag) {
     return {};
@@ -316,6 +365,14 @@ function asDate(epochSeconds?: number, fallback?: Date): Date {
   }
   const millis = epochSeconds < 1e12 ? epochSeconds * 1000 : epochSeconds;
   return new Date(millis);
+}
+
+function startOfDayUtc(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
 function parseRetryAfter(header: string | null): number | null {
@@ -395,7 +452,19 @@ function extractModelFromAdminItem(item: OpenAIAdminResultItem): string {
   return 'unknown';
 }
 
-function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date): UsageEventData[] {
+interface AdminUsageContext {
+  timestamp: Date;
+  windowStart: Date;
+  windowEnd: Date;
+  projectId?: string;
+  openaiApiKeyId?: string;
+  openaiUserId?: string;
+  serviceTier?: string;
+  batch?: boolean;
+  numModelRequests?: number;
+}
+
+function normalizeAdminResults(results: OpenAIAdminResultItem[], context: AdminUsageContext): UsageEventData[] {
   return results.map((item) => {
     const model = extractModelFromAdminItem(item);
     const tokensIn = safeNumber(item.input_tokens ?? item.prompt_tokens ?? item.usage?.prompt_tokens ?? 0);
@@ -414,7 +483,26 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date
       tokensIn,
       tokensOut,
       costEstimate: Number(cost.toFixed(6)),
-      timestamp,
+      timestamp: context.timestamp,
+      windowStart: context.windowStart,
+      windowEnd: context.windowEnd,
+      projectId: context.projectId,
+      openaiApiKeyId: context.openaiApiKeyId,
+      openaiUserId: context.openaiUserId,
+      serviceTier: item.service_tier ?? context.serviceTier,
+      batch: typeof item.batch === 'boolean' ? item.batch : context.batch,
+      numModelRequests: optionalNumber(item.num_model_requests) ?? context.numModelRequests,
+      inputCachedTokens: optionalNumber(item.input_cached_tokens),
+      inputUncachedTokens: optionalNumber(item.input_uncached_tokens),
+      inputTextTokens: optionalNumber(item.input_text_tokens),
+      outputTextTokens: optionalNumber(item.output_text_tokens),
+      inputCachedTextTokens: optionalNumber(item.input_cached_text_tokens),
+      inputAudioTokens: optionalNumber(item.input_audio_tokens),
+      inputCachedAudioTokens: optionalNumber(item.input_cached_audio_tokens),
+      outputAudioTokens: optionalNumber(item.output_audio_tokens),
+      inputImageTokens: optionalNumber(item.input_image_tokens),
+      inputCachedImageTokens: optionalNumber(item.input_cached_image_tokens),
+      outputImageTokens: optionalNumber(item.output_image_tokens),
     };
     if (pricingKey !== undefined || pricingFallback !== undefined) {
       usageEvent.pricingKey = pricingKey;
@@ -491,16 +579,34 @@ async function fetchAdminUsage(
   for (const page of pages) {
     const records = Array.isArray(page.data) ? page.data : [];
     for (const record of records) {
-      const timestamp = record.start_time_iso ? new Date(record.start_time_iso) : asDate(record.start_time, startDate);
+      const windowStart = record.start_time_iso ? new Date(record.start_time_iso) : asDate(record.start_time, startDate);
+      const windowEnd = record.end_time_iso ? new Date(record.end_time_iso) : addDays(windowStart, 1);
       const results = Array.isArray(record.results) ? record.results : [];
-      events.push(...normalizeAdminResults(results, timestamp));
+      const context: AdminUsageContext = {
+        timestamp: windowStart,
+        windowStart,
+        windowEnd,
+        projectId: record.project_id ?? undefined,
+        openaiApiKeyId: record.api_key_id ?? undefined,
+        openaiUserId: record.user_id ?? undefined,
+        serviceTier: record.service_tier ?? undefined,
+        batch: typeof record.batch === 'boolean' ? record.batch : undefined,
+        numModelRequests: optionalNumber(record.num_model_requests),
+      };
+      events.push(...normalizeAdminResults(results, context));
     }
 
     const dailyCosts = Array.isArray(page.daily_costs) ? page.daily_costs : [];
     for (const daily of dailyCosts) {
-      const timestamp = asDate((daily as any)?.timestamp, startDate);
+      const windowStart = asDate((daily as any)?.timestamp, startDate);
+      const windowEnd = addDays(windowStart, 1);
       const items = Array.isArray((daily as any)?.line_items) ? (daily as any).line_items! : [];
-      events.push(...normalizeAdminResults(items, timestamp));
+      const context: AdminUsageContext = {
+        timestamp: windowStart,
+        windowStart,
+        windowEnd,
+      };
+      events.push(...normalizeAdminResults(items, context));
     }
   }
 
@@ -533,13 +639,18 @@ async function fetchStandardUsage(apiKey: string, startDate: Date, endDate: Date
     const inputTokens = usage.n_context_tokens_total || 0;
     const outputTokens = usage.n_generated_tokens_total || 0;
     const { amount, pricingKey, fallback } = calculateCost(model, inputTokens, outputTokens);
+    const timestamp = new Date(usage.aggregation_timestamp * 1000);
+    const windowStart = startOfDayUtc(timestamp);
+    const windowEnd = addDays(windowStart, 1);
 
     return {
       model,
       tokensIn: inputTokens,
       tokensOut: outputTokens,
       costEstimate: Number(amount.toFixed(6)),
-      timestamp: new Date(usage.aggregation_timestamp * 1000),
+      timestamp,
+      windowStart,
+      windowEnd,
       pricingKey,
       pricingFallback: fallback,
     };
@@ -570,6 +681,7 @@ function generateSimulatedUsage(startDate: Date, endDate: Date): UsageEventData[
     const tokensOut = Math.floor(Math.random() * 1500) + 100;
     const { amount, pricingKey, fallback } = calculateCost(model, tokensIn, tokensOut);
     const ts = new Date(startDate.getTime() + Math.random() * duration);
+    const windowStart = startOfDayUtc(ts);
 
     events.push({
       model,
@@ -577,6 +689,8 @@ function generateSimulatedUsage(startDate: Date, endDate: Date): UsageEventData[
       tokensOut,
       costEstimate: Number(amount.toFixed(6)),
       timestamp: ts,
+      windowStart,
+      windowEnd: addDays(windowStart, 1),
       pricingKey,
       pricingFallback: fallback,
     });
@@ -683,15 +797,15 @@ export async function fetchAndStoreUsageForUser(
         let newEventsCount = 0;
         const fallbackModels = new Set<string>();
         for (const usage of usageData) {
+          const windowStart = usage.windowStart ? new Date(usage.windowStart) : startOfDayUtc(usage.timestamp);
+          const windowEnd = usage.windowEnd ? new Date(usage.windowEnd) : addDays(windowStart, 1);
           const existingEvent = await db
             .select()
             .from(usageEvents)
             .where(and(
               eq(usageEvents.keyId, keyRecord.id),
               eq(usageEvents.model, usage.model),
-              eq(usageEvents.timestamp, usage.timestamp),
-              eq(usageEvents.tokensIn, usage.tokensIn),
-              eq(usageEvents.tokensOut, usage.tokensOut),
+              eq(usageEvents.windowStart, windowStart),
             ))
             .limit(1);
 
@@ -703,6 +817,25 @@ export async function fetchAndStoreUsageForUser(
               tokensOut: usage.tokensOut,
               costEstimate: usage.costEstimate.toFixed(6),
               timestamp: usage.timestamp,
+              windowStart,
+              windowEnd,
+              projectId: usage.projectId,
+              openaiUserId: usage.openaiUserId,
+              openaiApiKeyId: usage.openaiApiKeyId,
+              serviceTier: usage.serviceTier,
+              batch: usage.batch ?? undefined,
+              numModelRequests: usage.numModelRequests,
+              inputCachedTokens: usage.inputCachedTokens,
+              inputUncachedTokens: usage.inputUncachedTokens,
+              inputTextTokens: usage.inputTextTokens,
+              outputTextTokens: usage.outputTextTokens,
+              inputCachedTextTokens: usage.inputCachedTextTokens,
+              inputAudioTokens: usage.inputAudioTokens,
+              inputCachedAudioTokens: usage.inputCachedAudioTokens,
+              outputAudioTokens: usage.outputAudioTokens,
+              inputImageTokens: usage.inputImageTokens,
+              inputCachedImageTokens: usage.inputCachedImageTokens,
+              outputImageTokens: usage.outputImageTokens,
             });
             newEventsCount += 1;
             telemetry.storedEvents += 1;
