@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { SignedIn, useUser } from '@clerk/nextjs';
+import { SafeSignedIn, useIsClerkConfigured, useSafeUser } from '@/lib/safe-clerk';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,7 +21,8 @@ interface ProviderKey {
 }
 
 export default function DashboardPage() {
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded } = useSafeUser();
+  const clerkConfigured = useIsClerkConfigured();
   const router = useRouter();
   const [keys, setKeys] = useState<ProviderKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,10 +33,10 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isLoaded && !user) {
+    if (clerkConfigured && isLoaded && !user) {
       router.push('/sign-in');
     }
-  }, [isLoaded, user, router]);
+  }, [clerkConfigured, isLoaded, user, router]);
 
   useEffect(() => {
     if (user) {
@@ -150,16 +151,18 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user) {
+  if (clerkConfigured && !user) {
     return null;
   }
 
+  const greetingName = clerkConfigured && user?.firstName ? `, ${user.firstName}` : '';
+
   return (
-    <SignedIn>
+    <SafeSignedIn>
       <main className="container space-y-10 py-10" aria-labelledby="dashboard-heading">
         <header className="space-y-2 text-center sm:text-left">
           <h1 id="dashboard-heading" className="text-3xl font-semibold tracking-tight">
-            Welcome back{user.firstName ? `, ${user.firstName}` : ''}.
+            Welcome back{greetingName}.
           </h1>
           <p className="text-muted-foreground">
             Manage provider keys, trigger usage refreshes, and monitor token spend in one place.
@@ -236,6 +239,6 @@ export default function DashboardPage() {
           )}
         </section>
       </main>
-    </SignedIn>
+    </SafeSignedIn>
   );
 }

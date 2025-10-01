@@ -54,11 +54,12 @@ export async function GET(request: NextRequest) {
     const offset = Math.max(parseInt(searchParams.get('offset') || '0'), 0);
 
     // Import database dependencies
-    const { db } = await import('../../../lib/database');
+    const { getDb } = await import('../../../lib/database');
     const { usageEvents, providerKeys } = await import('../../../db/schema');
     const { eq, desc } = await import('drizzle-orm');
 
     // Fetch usage events for the user
+    const db = getDb();
     const events = await db
       .select({
         id: usageEvents.id,

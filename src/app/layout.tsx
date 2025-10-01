@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toaster";
 import { NavMenu } from "@/components/ui/NavMenu";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+import { SafeClerkProvider } from "@/lib/safe-clerk";
 
 export const metadata: Metadata = {
   title: "LLM Usage Tracker",
@@ -18,24 +15,44 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const publishableKey =
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
+    process.env.CLERK_PUBLISHABLE_KEY ??
+    null;
+
+  const frontendApi = process.env.NEXT_PUBLIC_CLERK_FRONTEND_API ?? null;
+
+  if (!publishableKey) {
+    const message = frontendApi
+      ? "[Clerk] Detected NEXT_PUBLIC_CLERK_FRONTEND_API but no publishable key. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY or CLERK_PUBLISHABLE_KEY to enable Clerk. Rendering without ClerkProvider."
+      : "[Clerk] Clerk environment variables are not configured. Rendering without ClerkProvider.";
+
+    console.warn(message);
+  }
+
+  const appShell = (
+    <html lang="en">
+      <body
+        className={cn(
+          "min-h-screen bg-background font-sans antialiased",
+        )}
+      >
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container flex h-14 items-center">
+            <NavMenu />
+          </div>
+        </header>
+        {children}
+        <Toaster />
+      </body>
+    </html>
+  );
+
+  const clerkConfigured = Boolean(publishableKey);
+
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body
-          className={cn(
-            "min-h-screen bg-background font-sans antialiased",
-            inter.className
-          )}
-        >
-          <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="container flex h-14 items-center">
-              <NavMenu />
-            </div>
-          </header>
-          {children}
-          <Toaster />
-        </body>
-      </html>
-    </ClerkProvider>
+    <SafeClerkProvider publishableKey={publishableKey} isConfigured={clerkConfigured}>
+      {appShell}
+    </SafeClerkProvider>
   );
 }

@@ -1,5 +1,5 @@
 import { decrypt } from './encryption';
-import { db } from './database';
+import { getDb } from './database';
 import { providerKeys, usageEvents } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 
@@ -590,6 +590,7 @@ export async function fetchAndStoreUsageForUser(
   daysBack: number = 1
 ): Promise<IngestionTelemetry> {
   try {
+    const db = getDb();
     const userKeys = await db
       .select()
       .from(providerKeys)
