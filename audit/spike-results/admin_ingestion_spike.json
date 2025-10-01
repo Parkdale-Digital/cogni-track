@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generatedAt": "2025-09-30T18:52:45.670Z",
+    "generatedAt": "2025-09-30T23:49:18.116Z",
     "fixtures": {
       "usage": "usage_completions_fixture.json",
       "usageVariants": {
@@ -31,7 +31,7 @@
     "cursor": {
       "endpoint": "usage/completions",
       "nextPage": null,
-      "lastSyncedAt": "2025-09-30T18:52:45.667Z",
+      "lastSyncedAt": "2025-09-30T23:49:18.105Z",
       "hasMore": false
     }
   },
@@ -52,112 +52,123 @@
     {
       "endpoint": "usage/embeddings",
       "fixture": "usage_embeddings_fixture.json",
-      "totalBuckets": 1,
-      "totalResults": 2,
+      "totalBuckets": 2,
+      "totalResults": 3,
       "metrics": {
-        "input_tokens": 2560,
-        "num_model_requests": 4
+        "input_tokens": 3328,
+        "num_model_requests": 5
       },
       "hasMore": false,
-      "nextPage": null
+      "nextPage": null,
+      "pagesProcessed": 2
     },
     {
       "endpoint": "usage/moderations",
       "fixture": "usage_moderations_fixture.json",
-      "totalBuckets": 1,
-      "totalResults": 1,
+      "totalBuckets": 2,
+      "totalResults": 2,
       "metrics": {
-        "input_tokens": 128,
-        "num_model_requests": 2
+        "input_tokens": 192,
+        "num_model_requests": 3
       },
       "hasMore": false,
-      "nextPage": null
+      "nextPage": null,
+      "pagesProcessed": 2
     },
     {
       "endpoint": "usage/images",
       "fixture": "usage_images_fixture.json",
-      "totalBuckets": 1,
-      "totalResults": 1,
+      "totalBuckets": 2,
+      "totalResults": 2,
       "metrics": {
-        "images": 4,
-        "num_model_requests": 4
+        "images": 6,
+        "num_model_requests": 6
       },
       "breakdowns": {
         "bySize": {
-          "512x512": 4
+          "512x512": 4,
+          "1024x1024": 2
         },
         "bySource": {
-          "image.generation": 4
+          "image.generation": 4,
+          "image.edit": 2
         }
       },
       "hasMore": false,
-      "nextPage": null
+      "nextPage": null,
+      "pagesProcessed": 2
     },
     {
       "endpoint": "usage/audio_speeches",
       "fixture": "usage_audio_speeches_fixture.json",
-      "totalBuckets": 1,
-      "totalResults": 1,
+      "totalBuckets": 2,
+      "totalResults": 2,
       "metrics": {
-        "characters": 3500,
-        "num_model_requests": 3
+        "characters": 4700,
+        "num_model_requests": 4
       },
       "hasMore": false,
-      "nextPage": null
+      "nextPage": null,
+      "pagesProcessed": 2
     },
     {
       "endpoint": "usage/audio_transcriptions",
       "fixture": "usage_audio_transcriptions_fixture.json",
-      "totalBuckets": 1,
-      "totalResults": 1,
+      "totalBuckets": 2,
+      "totalResults": 2,
       "metrics": {
-        "seconds": 780,
-        "num_model_requests": 5
+        "seconds": 1020,
+        "num_model_requests": 6
       },
       "hasMore": false,
-      "nextPage": null
+      "nextPage": null,
+      "pagesProcessed": 2
     },
     {
       "endpoint": "usage/vector_stores",
       "fixture": "usage_vector_stores_fixture.json",
-      "totalBuckets": 1,
-      "totalResults": 1,
+      "totalBuckets": 2,
+      "totalResults": 2,
       "metrics": {
-        "usage_bytes": 1048576
+        "usage_bytes": 1572864
       },
       "hasMore": false,
-      "nextPage": null
+      "nextPage": null,
+      "pagesProcessed": 2
     },
     {
       "endpoint": "usage/code_interpreter_sessions",
       "fixture": "usage_code_interpreter_fixture.json",
-      "totalBuckets": 1,
-      "totalResults": 1,
+      "totalBuckets": 2,
+      "totalResults": 2,
       "metrics": {
-        "num_sessions": 6
+        "num_sessions": 9
       },
       "hasMore": false,
-      "nextPage": null
+      "nextPage": null,
+      "pagesProcessed": 2
     },
     {
       "endpoint": "costs",
       "fixture": "costs_fixture.json",
-      "totalBuckets": 1,
-      "totalResults": 2,
+      "totalBuckets": 2,
+      "totalResults": 3,
       "metrics": {
-        "amount_value": 15.55
+        "amount_value": 21.22
       },
       "breakdowns": {
         "byLineItem": {
           "usage.completions": 12.34,
-          "usage.images": 3.21
+          "usage.images": 3.21,
+          "usage.audio": 5.67
         },
         "byCurrency": {
-          "usd": 15.55
+          "usd": 21.22
         }
       },
       "hasMore": false,
-      "nextPage": null
+      "nextPage": null,
+      "pagesProcessed": 2
     }
   ],
   "relationships": {
@@ -166,5 +177,8 @@
     "missingServiceAccountIds": [],
     "orphanKeyIds": [],
     "missingCertificateIds": []
+  },
+  "foreignKeyIssues": {
+    "unknownProjects": []
   }
 }

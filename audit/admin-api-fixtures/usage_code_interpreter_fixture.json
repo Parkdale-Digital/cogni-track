@@ -12,18 +12,6 @@
           "project_id": "proj_abc123"
         }
       ]
-    },
-    {
-      "object": "bucket",
-      "start_time": 1730505600,
-      "end_time": 1730592000,
-      "results": [
-        {
-          "object": "organization.usage.code_interpreter_sessions.result",
-          "num_sessions": 3,
-          "project_id": "proj_xyz890"
-        }
-      ]
     }
   ],
   "has_more": true,

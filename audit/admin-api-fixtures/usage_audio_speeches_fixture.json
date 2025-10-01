@@ -16,22 +16,6 @@
           "model": "gpt-4o-mini-tts"
         }
       ]
-    },
-    {
-      "object": "bucket",
-      "start_time": 1730505600,
-      "end_time": 1730592000,
-      "results": [
-        {
-          "object": "organization.usage.audio_speeches.result",
-          "characters": 1200,
-          "num_model_requests": 1,
-          "project_id": "proj_abc123",
-          "user_id": "user_fixture_eta",
-          "api_key_id": "key_fixture_eta",
-          "model": "gpt-4o-mini-tts"
-        }
-      ]
     }
   ],
   "has_more": true,

@@ -153,6 +153,7 @@ type EndpointSummary = {
   breakdowns?: Record<string, Record<string, number>>;
   hasMore: boolean;
   nextPage: string | null;
+  pagesProcessed: number;
 };
 
 type SummaryMetric<T> = {
@@ -279,40 +280,45 @@ function summarizeUsage(response: AdminUsageResponse, deduped: DedupedUsageEvent
   };
 }
 
-async function summarizeEndpoint<T extends Record<string, unknown>>(
-  fixture: string,
+function summarizeEndpoint<T extends Record<string, unknown>>(
   endpoint: string,
+  fixture: string,
+  pages: GenericUsagePage<T>[],
   metrics: SummaryMetric<T>[],
   breakdowns: SummaryBreakdown<T>[] = []
-): Promise<EndpointSummary> {
-  const page = await loadJson<GenericUsagePage<T>>(fixture);
-  const totalBuckets = page.data?.length ?? 0;
+): EndpointSummary {
   const totals: Record<string, number> = Object.fromEntries(metrics.map((metric) => [metric.key, 0]));
   const breakdownTotals: Record<string, Record<string, number>> = {};
   let totalResults = 0;
+  let totalBuckets = 0;
 
-  for (const bucket of page.data ?? []) {
-    for (const result of bucket.results ?? []) {
-      totalResults += 1;
-      for (const metric of metrics) {
-        const value = Number(metric.selector(result) ?? 0);
-        if (Number.isFinite(value)) {
-          totals[metric.key] += value;
+  for (const page of pages) {
+    totalBuckets += page.data?.length ?? 0;
+    for (const bucket of page.data ?? []) {
+      for (const result of bucket.results ?? []) {
+        totalResults += 1;
+        for (const metric of metrics) {
+          const value = Number(metric.selector(result) ?? 0);
+          if (Number.isFinite(value)) {
+            totals[metric.key] += value;
+          }
         }
-      }
 
-      for (const breakdown of breakdowns) {
-        const dimensionValue = breakdown.groupBy(result) ?? 'unspecified';
-        const metricValue = Number(breakdown.metric(result) ?? 0);
-        if (!Number.isFinite(metricValue)) continue;
-        if (!breakdownTotals[breakdown.name]) {
-          breakdownTotals[breakdown.name] = {};
+        for (const breakdown of breakdowns) {
+          const dimensionValue = breakdown.groupBy(result) ?? 'unspecified';
+          const metricValue = Number(breakdown.metric(result) ?? 0);
+          if (!Number.isFinite(metricValue)) continue;
+          if (!breakdownTotals[breakdown.name]) {
+            breakdownTotals[breakdown.name] = {};
+          }
+          breakdownTotals[breakdown.name][dimensionValue] =
+            (breakdownTotals[breakdown.name][dimensionValue] ?? 0) + metricValue;
         }
-        breakdownTotals[breakdown.name][dimensionValue] =
-          (breakdownTotals[breakdown.name][dimensionValue] ?? 0) + metricValue;
       }
     }
   }
+
+  const lastPage = pages[pages.length - 1] ?? {};
 
   return {
     endpoint,
@@ -323,8 +329,9 @@ async function summarizeEndpoint<T extends Record<string, unknown>>(
       Object.entries(totals).map(([key, value]) => [key, Number(value.toFixed(6))])
     ),
     breakdowns: Object.keys(breakdownTotals).length ? breakdownTotals : undefined,
-    hasMore: Boolean(page.has_more),
-    nextPage: page.next_page ?? null,
+    hasMore: Boolean(lastPage.has_more),
+    nextPage: lastPage.next_page ?? null,
+    pagesProcessed: pages.length,
   };
 }
 
@@ -364,9 +371,17 @@ function inspectRelationships(input: {
 async function runSpike() {
   const usage = await loadJson<AdminUsageResponse>('usage_completions_fixture.json');
   const usageEvents: UsageEvent[] = [];
+  const pendingCompletionProjects: string[] = [];
+  const unknownProjects = new Set<string>();
 
   for (const bucket of usage.data ?? []) {
     const timestamp = resolveTimestamp(bucket);
+    for (const result of bucket.results ?? []) {
+      const projectId = (result as any)?.metadata?.project_id;
+      if (projectId) {
+        pendingCompletionProjects.push(projectId);
+      }
+    }
     usageEvents.push(
       ...normalizeAdminLineItems(bucket.results, timestamp, 'bucket:data')
     );
@@ -391,59 +406,115 @@ async function runSpike() {
     loadJson<{ data: CertificateEvent[] }>('certificate_events_fixture.json').then((resp) => resp.data ?? []),
   ]);
 
-  const additionalSummaries = await Promise.all([
-    summarizeEndpoint<any>('usage_embeddings_fixture.json', 'usage/embeddings', [
-      { key: 'input_tokens', selector: (result) => Number(result.input_tokens ?? 0) },
-      { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
-    ]),
-    summarizeEndpoint<any>('usage_moderations_fixture.json', 'usage/moderations', [
-      { key: 'input_tokens', selector: (result) => Number(result.input_tokens ?? 0) },
-      { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
-    ]),
-    summarizeEndpoint<any>('usage_images_fixture.json', 'usage/images', [
-      { key: 'images', selector: (result) => Number(result.images ?? 0) },
-      { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
-    ], [
-      {
-        name: 'bySize',
-        groupBy: (result) => (result.size as string | null | undefined),
-        metric: (result) => Number(result.images ?? 0),
-      },
-      {
-        name: 'bySource',
-        groupBy: (result) => (result.source as string | null | undefined),
-        metric: (result) => Number(result.images ?? 0),
-      },
-    ]),
-    summarizeEndpoint<any>('usage_audio_speeches_fixture.json', 'usage/audio_speeches', [
-      { key: 'characters', selector: (result) => Number(result.characters ?? 0) },
-      { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
-    ]),
-    summarizeEndpoint<any>('usage_audio_transcriptions_fixture.json', 'usage/audio_transcriptions', [
-      { key: 'seconds', selector: (result) => Number(result.seconds ?? 0) },
-      { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
-    ]),
-    summarizeEndpoint<any>('usage_vector_stores_fixture.json', 'usage/vector_stores', [
-      { key: 'usage_bytes', selector: (result) => Number(result.usage_bytes ?? 0) },
-    ]),
-    summarizeEndpoint<any>('usage_code_interpreter_fixture.json', 'usage/code_interpreter_sessions', [
-      { key: 'num_sessions', selector: (result) => Number(result.num_sessions ?? 0) },
-    ]),
-    summarizeEndpoint<any>('costs_fixture.json', 'costs', [
-      { key: 'amount_value', selector: (result) => Number(result.amount?.value ?? 0) },
-    ], [
-      {
-        name: 'byLineItem',
-        groupBy: (result) => (result.line_item as string | null | undefined),
-        metric: (result) => Number(result.amount?.value ?? 0),
-      },
-      {
-        name: 'byCurrency',
-        groupBy: (result) => (result.amount?.currency as string | null | undefined),
-        metric: (result) => Number(result.amount?.value ?? 0),
-      },
-    ]),
-  ]);
+  const knownProjectIds = new Set(projects.map((p) => p.id));
+  for (const projectId of pendingCompletionProjects) {
+    if (!knownProjectIds.has(projectId)) {
+      unknownProjects.add(`usage/completions:${projectId}`);
+    }
+  }
+
+  const additionalPageMap: Record<string, string[]> = {
+    'usage/embeddings': ['usage_embeddings_fixture.json', 'usage_embeddings_fixture_page2.json'],
+    'usage/moderations': ['usage_moderations_fixture.json', 'usage_moderations_fixture_page2.json'],
+    'usage/images': ['usage_images_fixture.json', 'usage_images_fixture_page2.json'],
+    'usage/audio_speeches': ['usage_audio_speeches_fixture.json', 'usage_audio_speeches_fixture_page2.json'],
+    'usage/audio_transcriptions': ['usage_audio_transcriptions_fixture.json', 'usage_audio_transcriptions_fixture_page2.json'],
+    'usage/vector_stores': ['usage_vector_stores_fixture.json', 'usage_vector_stores_fixture_page2.json'],
+    'usage/code_interpreter_sessions': ['usage_code_interpreter_fixture.json', 'usage_code_interpreter_fixture_page2.json'],
+    'costs': ['costs_fixture.json', 'costs_fixture_page2.json'],
+  };
+
+  const loadPages = async <T>(names: string[]): Promise<GenericUsagePage<T>[]> => {
+    const pages: GenericUsagePage<T>[] = [];
+    for (const name of names) {
+      pages.push(await loadJson<GenericUsagePage<T>>(name));
+    }
+    return pages;
+  };
+
+  const additionalSummaries = await Promise.all(
+    Object.entries(additionalPageMap).map(async ([endpoint, fixtures]) => {
+      const [primary] = fixtures;
+      const pages = await loadPages<any>(fixtures);
+
+      const summary = summarizeEndpoint<any>(
+        endpoint,
+        primary,
+        pages,
+        endpoint === 'usage/images'
+          ? [
+              { key: 'images', selector: (result) => Number(result.images ?? 0) },
+              { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
+            ]
+          : endpoint === 'usage/audio_speeches'
+          ? [
+              { key: 'characters', selector: (result) => Number(result.characters ?? 0) },
+              { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
+            ]
+          : endpoint === 'usage/audio_transcriptions'
+          ? [
+              { key: 'seconds', selector: (result) => Number(result.seconds ?? 0) },
+              { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
+            ]
+          : endpoint === 'usage/vector_stores'
+          ? [
+              { key: 'usage_bytes', selector: (result) => Number(result.usage_bytes ?? 0) },
+            ]
+          : endpoint === 'usage/code_interpreter_sessions'
+          ? [
+              { key: 'num_sessions', selector: (result) => Number(result.num_sessions ?? 0) },
+            ]
+          : endpoint === 'costs'
+          ? [
+              { key: 'amount_value', selector: (result) => Number(result.amount?.value ?? 0) },
+            ]
+          : [
+              { key: 'input_tokens', selector: (result) => Number(result.input_tokens ?? 0) },
+              { key: 'num_model_requests', selector: (result) => Number(result.num_model_requests ?? 0) },
+            ],
+        endpoint === 'usage/images'
+          ? [
+              {
+                name: 'bySize',
+                groupBy: (result) => (result.size as string | null | undefined),
+                metric: (result) => Number(result.images ?? 0),
+              },
+              {
+                name: 'bySource',
+                groupBy: (result) => (result.source as string | null | undefined),
+                metric: (result) => Number(result.images ?? 0),
+              },
+            ]
+          : endpoint === 'costs'
+          ? [
+              {
+                name: 'byLineItem',
+                groupBy: (result) => (result.line_item as string | null | undefined),
+                metric: (result) => Number(result.amount?.value ?? 0),
+              },
+              {
+                name: 'byCurrency',
+                groupBy: (result) => (result.amount?.currency as string | null | undefined),
+                metric: (result) => Number(result.amount?.value ?? 0),
+              },
+            ]
+          : []
+      );
+
+      for (const page of pages) {
+        for (const bucket of page.data ?? []) {
+          for (const result of bucket.results ?? []) {
+            const projectId = (result as any)?.project_id ?? (result as any)?.metadata?.project_id ?? null;
+            if (projectId && !knownProjectIds.has(projectId)) {
+              unknownProjects.add(`${endpoint}:${projectId}`);
+            }
+          }
+        }
+      }
+
+      return summary;
+    })
+  );
 
   const relationships = inspectRelationships({
     projects,
@@ -483,6 +554,9 @@ async function runSpike() {
     dedupedUsage,
     additionalSummaries,
     relationships,
+    foreignKeyIssues: {
+      unknownProjects: Array.from(unknownProjects),
+    },
   };
 
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
@@ -492,11 +566,12 @@ async function runSpike() {
     usageSummary,
     additionalSummaries,
     relationships,
+    unknownProjects: Array.from(unknownProjects),
   };
 }
 
 async function main() {
-  const { reportPath, usageSummary, additionalSummaries, relationships } = await runSpike();
+  const { reportPath, usageSummary, additionalSummaries, relationships, unknownProjects } = await runSpike();
 
   const issues: string[] = [];
   if (usageSummary.cursor.hasMore) {
@@ -517,11 +592,18 @@ async function main() {
     issues.push(`Certificates referenced by events missing definitions: ${relationships.missingCertificateIds.join(', ')}`);
   }
 
+  if (unknownProjects.length) {
+    issues.push(`Unknown project references detected: ${unknownProjects.join(', ')}`);
+  }
+
   const summary = {
     reportPath,
     usageSummary,
     additionalSummaries,
     relationshipIssues: issues,
+    foreignKeyIssues: {
+      unknownProjects,
+    },
   };
 
   // eslint-disable-next-line no-console

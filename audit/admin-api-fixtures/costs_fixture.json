@@ -25,22 +25,6 @@
           "line_item": "usage.images"
         }
       ]
-    },
-    {
-      "object": "bucket",
-      "start_time": 1730505600,
-      "end_time": 1730592000,
-      "results": [
-        {
-          "object": "organization.costs.result",
-          "amount": {
-            "value": 5.67,
-            "currency": "usd"
-          },
-          "project_id": "proj_xyz890",
-          "line_item": "usage.audio"
-        }
-      ]
     }
   ],
   "has_more": true,
