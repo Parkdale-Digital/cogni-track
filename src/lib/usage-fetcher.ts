@@ -77,14 +77,24 @@ export interface IngestionTelemetry {
 const OPENAI_USAGE_MODE = (process.env.OPENAI_USAGE_MODE ?? 'standard').toLowerCase() as OpenAIUsageMode;
 const OPENAI_ORGANIZATION = process.env.OPENAI_ORGANIZATION ?? process.env.OPENAI_ORG_ID ?? undefined;
 const OPENAI_PROJECT = process.env.OPENAI_PROJECT ?? process.env.OPENAI_PROJECT_ID ?? undefined;
-const OPENAI_ADMIN_LIMIT = Math.max(1, Math.min(Number(process.env.OPENAI_ADMIN_LIMIT ?? 31), 31));
+function asFiniteNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const OPENAI_ADMIN_LIMIT = Math.max(1, Math.min(asFiniteNumber(process.env.OPENAI_ADMIN_LIMIT, 31), 31));
 const ENABLE_SIMULATED_USAGE = (process.env.ENABLE_SIMULATED_USAGE ?? 'false').toLowerCase() === 'true';
 const ADMIN_REQUESTS_PER_MINUTE = Math.max(
   1,
-  Math.min(Number(process.env.OPENAI_ADMIN_REQUESTS_PER_MINUTE ?? 50), 60)
+  Math.min(asFiniteNumber(process.env.OPENAI_ADMIN_REQUESTS_PER_MINUTE, 50), 60)
 );
-const ADMIN_MAX_BURST = Math.max(1, Number(process.env.OPENAI_ADMIN_MAX_BURST ?? 10));
+const ADMIN_MAX_BURST = Math.max(1, asFiniteNumber(process.env.OPENAI_ADMIN_MAX_BURST, 10));
 const ADMIN_THROTTLE_WINDOW_SECONDS = 60;
+const ADMIN_THROTTLE_TIMEOUT_MS = Math.max(
+  1000,
+  asFiniteNumber(process.env.OPENAI_ADMIN_THROTTLE_TIMEOUT_MS, 60000)
+);
 
 type TokenPricing = {
   input: number;
@@ -150,11 +160,15 @@ function refillAdminTokens(): void {
 
 async function acquireAdminToken(): Promise<void> {
   if (ADMIN_REQUESTS_PER_MINUTE <= 0) return;
+  const start = Date.now();
   while (true) {
     refillAdminTokens();
     if (adminTokens >= 1) {
       adminTokens -= 1;
       return;
+    }
+    if (Date.now() - start > ADMIN_THROTTLE_TIMEOUT_MS) {
+      throw new Error('Admin throttle timed out while waiting for token');
     }
     const waitMs = Math.max(100, Math.ceil((ADMIN_THROTTLE_WINDOW_SECONDS / ADMIN_REQUESTS_PER_MINUTE) * 1000));
     await sleep(waitMs);
@@ -381,9 +395,9 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date
     const model = extractModelFromAdminItem(item);
     const tokensIn = safeNumber(item.input_tokens ?? item.prompt_tokens ?? item.usage?.prompt_tokens ?? 0);
     const tokensOut = safeNumber(item.output_tokens ?? item.completion_tokens ?? item.usage?.completion_tokens ?? 0);
+    const { amount, pricingKey, fallback } = calculateCost(model, tokensIn, tokensOut);
     let cost = safeNumber(item.cost ?? item.amount ?? item.usage?.total_cost ?? 0);
     if (cost <= 0) {
-      const { amount } = calculateCost(model, tokensIn, tokensOut);
       cost = amount;
     }
     return {
@@ -392,6 +406,8 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date
       tokensOut,
       costEstimate: Number(cost.toFixed(6)),
       timestamp,
+      pricingKey,
+      pricingFallback: fallback,
     };
   });
 }
