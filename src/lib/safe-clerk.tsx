@@ -1,5 +1,9 @@
+"use client";
+
+import { createContext, useContext } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import {
+  ClerkProvider,
   SignedIn,
   SignedOut,
   SignInButton,
@@ -8,33 +12,63 @@ import {
   useUser,
 } from "@clerk/nextjs";
 
-const hasClerkConfig = Boolean(
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
-    process.env.CLERK_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_CLERK_FRONTEND_API
-);
-
 type UseUserReturn = ReturnType<typeof useUser>;
 
-export function useSafeUser(): UseUserReturn {
-  if (!hasClerkConfig) {
-    return {
-      isLoaded: true,
-      isLoading: false,
-      isSignedIn: false,
-      isSignedOut: true,
-      user: null,
-      setActive: async () => undefined,
-      signOut: async () => undefined,
-    } as UseUserReturn;
+type SafeUserState = UseUserReturn;
+
+const fallbackUserState: SafeUserState = {
+  isLoaded: true,
+  isLoading: false,
+  isSignedIn: false,
+  isSignedOut: true,
+  user: null,
+  setActive: async () => undefined,
+  signOut: async () => undefined,
+} as SafeUserState;
+
+const SafeUserContext = createContext<SafeUserState>(fallbackUserState);
+const ClerkConfiguredContext = createContext(false);
+
+type SafeClerkProviderProps = {
+  children: ReactNode;
+  publishableKey?: string | null;
+  isConfigured: boolean;
+};
+
+function SafeUserProvider({ children }: { children: ReactNode }) {
+  const userState = useUser();
+  return <SafeUserContext.Provider value={userState}>{children}</SafeUserContext.Provider>;
+}
+
+export function SafeClerkProvider({ children, publishableKey, isConfigured }: SafeClerkProviderProps) {
+  if (!isConfigured || !publishableKey) {
+    return (
+      <ClerkConfiguredContext.Provider value={false}>
+        <SafeUserContext.Provider value={fallbackUserState}>{children}</SafeUserContext.Provider>
+      </ClerkConfiguredContext.Provider>
+    );
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  return useUser();
+  return (
+    <ClerkConfiguredContext.Provider value={true}>
+      <ClerkProvider publishableKey={publishableKey}>
+        <SafeUserProvider>{children}</SafeUserProvider>
+      </ClerkProvider>
+    </ClerkConfiguredContext.Provider>
+  );
+}
+
+export function useSafeUser(): UseUserReturn {
+  return useContext(SafeUserContext);
+}
+
+function useClerkConfigFlag(): boolean {
+  return useContext(ClerkConfiguredContext);
 }
 
 export function SafeSignedIn({ children }: { children: ReactNode }) {
-  if (!hasClerkConfig) {
+  const configured = useClerkConfigFlag();
+  if (!configured) {
     return null;
   }
 
@@ -42,7 +76,8 @@ export function SafeSignedIn({ children }: { children: ReactNode }) {
 }
 
 export function SafeSignedOut({ children }: { children: ReactNode }) {
-  if (!hasClerkConfig) {
+  const configured = useClerkConfigFlag();
+  if (!configured) {
     return <>{children}</>;
   }
 
@@ -50,7 +85,8 @@ export function SafeSignedOut({ children }: { children: ReactNode }) {
 }
 
 export function SafeSignInButton({ children, ...props }: ComponentProps<typeof SignInButton>) {
-  if (!hasClerkConfig) {
+  const configured = useClerkConfigFlag();
+  if (!configured) {
     return <>{children}</>;
   }
 
@@ -58,7 +94,8 @@ export function SafeSignInButton({ children, ...props }: ComponentProps<typeof S
 }
 
 export function SafeSignUpButton({ children, ...props }: ComponentProps<typeof SignUpButton>) {
-  if (!hasClerkConfig) {
+  const configured = useClerkConfigFlag();
+  if (!configured) {
     return <>{children}</>;
   }
 
@@ -66,9 +103,14 @@ export function SafeSignUpButton({ children, ...props }: ComponentProps<typeof S
 }
 
 export function SafeUserButton(props: ComponentProps<typeof UserButton>) {
-  if (!hasClerkConfig) {
+  const configured = useClerkConfigFlag();
+  if (!configured) {
     return null;
   }
 
   return <UserButton {...props} />;
+}
+
+export function useIsClerkConfigured(): boolean {
+  return useClerkConfigFlag();
 }

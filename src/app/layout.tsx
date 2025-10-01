@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ClerkProvider } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toaster";
 import { NavMenu } from "@/components/ui/NavMenu";
+import { SafeClerkProvider } from "@/lib/safe-clerk";
 
 export const metadata: Metadata = {
   title: "LLM Usage Tracker",
@@ -48,9 +48,11 @@ export default function RootLayout({
     </html>
   );
 
-  return publishableKey ? (
-    <ClerkProvider publishableKey={publishableKey}>{appShell}</ClerkProvider>
-  ) : (
-    appShell
+  const clerkConfigured = Boolean(publishableKey);
+
+  return (
+    <SafeClerkProvider publishableKey={publishableKey} isConfigured={clerkConfigured}>
+      {appShell}
+    </SafeClerkProvider>
   );
 }

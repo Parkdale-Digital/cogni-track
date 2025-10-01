@@ -2,7 +2,11 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 import * as schema from '../db/schema';
 
-let cachedDb: ReturnType<typeof drizzle> | null = null;
+type DrizzleInstance = ReturnType<typeof drizzle>;
+
+const globalForDb = globalThis as typeof globalThis & {
+  __drizzleDb__?: DrizzleInstance;
+};
 
 function createDb() {
   const connectionString = process.env.DATABASE_URL;
@@ -18,11 +22,11 @@ function createDb() {
 }
 
 export function getDb() {
-  if (!cachedDb) {
-    cachedDb = createDb();
+  if (!globalForDb.__drizzleDb__) {
+    globalForDb.__drizzleDb__ = createDb();
   }
 
-  return cachedDb;
+  return globalForDb.__drizzleDb__;
 }
 
 export { schema };

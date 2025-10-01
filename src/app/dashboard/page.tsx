@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { SafeSignedIn, useSafeUser } from '@/lib/safe-clerk';
+import { SafeSignedIn, useIsClerkConfigured, useSafeUser } from '@/lib/safe-clerk';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,6 +22,7 @@ interface ProviderKey {
 
 export default function DashboardPage() {
   const { user, isLoaded } = useSafeUser();
+  const clerkConfigured = useIsClerkConfigured();
   const router = useRouter();
   const [keys, setKeys] = useState<ProviderKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,10 +33,10 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isLoaded && !user) {
+    if (clerkConfigured && isLoaded && !user) {
       router.push('/sign-in');
     }
-  }, [isLoaded, user, router]);
+  }, [clerkConfigured, isLoaded, user, router]);
 
   useEffect(() => {
     if (user) {
@@ -150,7 +151,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user) {
+  if (clerkConfigured && !user) {
     return null;
   }
 
