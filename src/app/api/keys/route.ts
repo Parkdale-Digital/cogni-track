@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { eq } from 'drizzle-orm';
-import { db, schema } from '../../../lib/database';
+import { getDb, schema } from '../../../lib/database';
 import { encrypt, decrypt } from '../../../lib/encryption';
 
 type ProviderKeyRecord = typeof schema.providerKeys.$inferSelect;
@@ -50,6 +50,7 @@ function normalizeProjectId(value: string): string {
 
 // Initialize database tables if they don't exist
 async function initializeTables() {
+  const db = getDb();
   try {
     // Create users table
     await db.execute(`
@@ -106,6 +107,7 @@ async function initializeTables() {
 
 // Ensure user exists in our database
 async function ensureUser(userId: string) {
+  const db = getDb();
   try {
     await db.insert(schema.users).values({
       id: userId,
@@ -119,11 +121,12 @@ async function ensureUser(userId: string) {
 export async function GET() {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const db = getDb();
     await initializeTables();
     await ensureUser(userId);
 
@@ -180,11 +183,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const db = getDb();
     const body = await request.json();
     const { provider, apiKey, usageMode = 'standard', organizationId, projectId } = body;
 
