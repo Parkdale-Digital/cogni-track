@@ -787,6 +787,7 @@ export async function fetchAndStoreUsageForUser(
           } catch (error) {
             if (error instanceof UsageConfigurationError) {
               telemetry.failedKeys += 1;
+              failureCountedForKey = true;
               telemetry.issues.push({
                 keyId: keyRecord.id,
                 message: error.message,
@@ -829,7 +830,9 @@ export async function fetchAndStoreUsageForUser(
                   windowStart: windowRange.start.toISOString(),
                 });
                 telemetry.failedKeys += 1;
-                throw error;
+                const err = error instanceof Error ? error : new Error(String(error));
+                (err as Record<string, unknown>)._usageFailureCounted = true;
+                throw err;
               }
             } else {
               telemetry.failedKeys += 1;
@@ -843,7 +846,9 @@ export async function fetchAndStoreUsageForUser(
                 windowStart: windowRange.start.toISOString(),
                 error: error instanceof Error ? error.message : error,
               });
-              throw error;
+              const err = error instanceof Error ? error : new Error(String(error));
+              (err as Record<string, unknown>)._usageFailureCounted = true;
+              throw err;
             }
           }
 
@@ -859,8 +864,8 @@ export async function fetchAndStoreUsageForUser(
           processedWindows += 1;
 
           for (const usage of usageData) {
-            const windowStart = usage.windowStart ? new Date(usage.windowStart) : startOfDayUtc(usage.timestamp);
-            const windowEnd = usage.windowEnd ? new Date(usage.windowEnd) : addDays(windowStart, 1);
+            const windowStart = usage.windowStart ?? startOfDayUtc(usage.timestamp);
+            const windowEnd = usage.windowEnd ?? addDays(windowStart, 1);
             const existingEvent = await db
               .select()
               .from(usageEvents)
@@ -902,9 +907,9 @@ export async function fetchAndStoreUsageForUser(
               newEventsCount += 1;
               telemetry.storedEvents += 1;
             } else {
-            await db
-              .update(usageEvents)
-              .set({
+              await db
+                .update(usageEvents)
+                .set({
                   tokensIn: usage.tokensIn,
                   tokensOut: usage.tokensOut,
                   costEstimate: usage.costEstimate.toFixed(6),
@@ -978,7 +983,10 @@ export async function fetchAndStoreUsageForUser(
           });
         }
       } catch (error) {
-        telemetry.failedKeys += 1;
+        const counted = typeof error === 'object' && error !== null && (error as Record<string, unknown>)._usageFailureCounted === true;
+        if (!counted) {
+          telemetry.failedKeys += 1;
+        }
         telemetry.issues.push({
           keyId: keyRecord.id,
           message: error instanceof Error ? error.message : 'Unknown ingestion error',
