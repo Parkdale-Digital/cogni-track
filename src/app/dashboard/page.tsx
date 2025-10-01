@@ -155,11 +155,13 @@ export default function DashboardPage() {
     return null;
   }
 
+  const greetingName = clerkConfigured && user?.firstName ? `, ${user.firstName}` : '';
+
   return (
     <SafeSignedIn>
       <div className="container space-y-10 py-10">
         <header className="space-y-2 text-center sm:text-left">
-          <h1 className="text-3xl font-semibold tracking-tight">Welcome back{user.firstName ? `, ${user.firstName}` : ''}.</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Welcome back{greetingName}.</h1>
           <p className="text-muted-foreground">
             Manage provider keys, trigger usage refreshes, and monitor token spend in one place.
           </p>
