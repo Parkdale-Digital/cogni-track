@@ -78,7 +78,7 @@ export default function GrowthAnalysis({ events, className }: GrowthAnalysisProp
 
   return (
     <div className={cn('rounded-lg border border-border bg-card p-6 shadow-sm', className)}>
-      <h2 className="text-xl font-semibold text-foreground">30-day growth analysis</h2>
+      <h3 className="text-lg font-semibold text-foreground">30-day growth analysis</h3>
       <p className="mt-1 text-sm text-muted-foreground">
         Compare the current 30-day window against the previous period to monitor momentum.
       </p>
