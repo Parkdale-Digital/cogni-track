@@ -2,6 +2,8 @@
 
 import React from 'react';
 
+import { cn } from '@/lib/utils';
+
 interface UsageEvent {
   id: number;
   model: string;
@@ -17,16 +19,13 @@ interface UsageSummaryProps {
 }
 
 export default function UsageSummary({ events }: UsageSummaryProps) {
-  // Calculate summary statistics
   const totalEvents = events.length;
   const totalTokensIn = events.reduce((sum, event) => sum + (event.tokensIn || 0), 0);
   const totalTokensOut = events.reduce((sum, event) => sum + (event.tokensOut || 0), 0);
   const totalCost = events.reduce((sum, event) => sum + parseFloat(event.costEstimate || '0'), 0);
 
-  // Get unique models
   const uniqueModels = Array.from(new Set(events.map(event => event.model)));
 
-  // Get usage by provider
   const providerStats = events.reduce((acc, event) => {
     if (!acc[event.provider]) {
       acc[event.provider] = { events: 0, cost: 0 };
@@ -45,44 +44,61 @@ export default function UsageSummary({ events }: UsageSummaryProps) {
     return num.toLocaleString();
   };
 
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <h2 className="text-xl font-semibold mb-6 text-gray-800">Usage Summary</h2>
-      
-      {/* Overview Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-blue-600">{totalEvents}</div>
-          <div className="text-sm text-gray-600">Total Requests</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-green-600">{formatNumber(totalTokensIn)}</div>
-          <div className="text-sm text-gray-600">Input Tokens</div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-purple-600">{formatNumber(totalTokensOut)}</div>
-          <div className="text-sm text-gray-600">Output Tokens</div>
-        </div>
-        <div className="bg-orange-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-orange-600">${totalCost.toFixed(4)}</div>
-          <div className="text-sm text-gray-600">Total Cost</div>
-        </div>
-      </div>
+  const stats = [
+    {
+      label: 'Total requests',
+      value: totalEvents.toLocaleString(),
+      accent: 'text-primary'
+    },
+    {
+      label: 'Input tokens',
+      value: formatNumber(totalTokensIn),
+      accent: 'text-primary'
+    },
+    {
+      label: 'Output tokens',
+      value: formatNumber(totalTokensOut),
+      accent: 'text-primary'
+    },
+    {
+      label: 'Total cost',
+      value: `$${totalCost.toFixed(4)}`,
+      accent: 'text-foreground'
+    }
+  ];
 
-      {/* Provider Breakdown */}
+  return (
+    <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+      <h2 className="text-xl font-semibold text-foreground">Usage summary</h2>
+
+      <dl className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-md border border-border/60 bg-muted/40 p-4"
+          >
+            <dt className="text-sm font-medium text-muted-foreground">{stat.label}</dt>
+            <dd className={cn('mt-2 text-2xl font-semibold leading-none', stat.accent)}>{stat.value}</dd>
+          </div>
+        ))}
+      </dl>
+
       {Object.keys(providerStats).length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-medium mb-3 text-gray-700">Usage by Provider</h3>
+        <div className="mt-8 space-y-3">
+          <h3 className="text-lg font-medium text-foreground">Usage by provider</h3>
           <div className="space-y-2">
             {Object.entries(providerStats).map(([provider, stats]) => (
-              <div key={provider} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                  <span className="font-medium capitalize">{provider}</span>
+              <div
+                key={provider}
+                className="flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-4 py-3"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-2.5 w-2.5 rounded-full bg-primary" aria-hidden="true" />
+                  <span className="font-medium capitalize text-foreground">{provider}</span>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium">{stats.events} requests</div>
-                  <div className="text-xs text-gray-600">${stats.cost.toFixed(4)}</div>
+                  <div className="text-sm font-medium text-foreground">{stats.events} requests</div>
+                  <div className="text-xs text-muted-foreground">${stats.cost.toFixed(4)}</div>
                 </div>
               </div>
             ))}
@@ -90,15 +106,14 @@ export default function UsageSummary({ events }: UsageSummaryProps) {
         </div>
       )}
 
-      {/* Models Used */}
       {uniqueModels.length > 0 && (
-        <div>
-          <h3 className="text-lg font-medium mb-3 text-gray-700">Models Used</h3>
+        <div className="mt-8 space-y-3">
+          <h3 className="text-lg font-medium text-foreground">Models used</h3>
           <div className="flex flex-wrap gap-2">
             {uniqueModels.map((model) => (
               <span
                 key={model}
-                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+                className="inline-flex items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-sm text-muted-foreground"
               >
                 {model}
               </span>
@@ -108,11 +123,8 @@ export default function UsageSummary({ events }: UsageSummaryProps) {
       )}
 
       {totalEvents === 0 && (
-        <div className="text-center py-8">
-          <div className="text-gray-500 mb-2">No usage data available</div>
-          <div className="text-sm text-gray-400">
-            Add your API keys and fetch usage data to see analytics
-          </div>
+        <div className="mt-8 rounded-md border border-dashed border-muted-foreground/30 bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+          No usage data matches the current filters.
         </div>
       )}
     </div>

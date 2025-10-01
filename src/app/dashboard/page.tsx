@@ -156,9 +156,11 @@ export default function DashboardPage() {
 
   return (
     <SignedIn>
-      <div className="container space-y-10 py-10">
+      <main className="container space-y-10 py-10" aria-labelledby="dashboard-heading">
         <header className="space-y-2 text-center sm:text-left">
-          <h1 className="text-3xl font-semibold tracking-tight">Welcome back{user.firstName ? `, ${user.firstName}` : ''}.</h1>
+          <h1 id="dashboard-heading" className="text-3xl font-semibold tracking-tight">
+            Welcome back{user.firstName ? `, ${user.firstName}` : ''}.
+          </h1>
           <p className="text-muted-foreground">
             Manage provider keys, trigger usage refreshes, and monitor token spend in one place.
           </p>
@@ -170,10 +172,12 @@ export default function DashboardPage() {
           </Alert>
         )}
 
-        <section className="space-y-4">
+        <section className="space-y-4" aria-labelledby="keys-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-medium">API keys</h2>
+              <h2 id="keys-heading" className="text-lg font-medium">
+                API keys
+              </h2>
               <p className="text-sm text-muted-foreground">
                 Encrypt and manage the provider credentials we use to fetch usage data.
               </p>
@@ -231,7 +235,7 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
-      </div>
+      </main>
     </SignedIn>
   );
 }
