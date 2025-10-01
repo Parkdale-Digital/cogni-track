@@ -21,8 +21,8 @@ interface GrowthAnalysisProps {
 }
 
 const GROWTH_STYLES = {
-  positive: { chip: 'bg-emerald-100 text-emerald-900', text: 'text-emerald-600' },
-  negative: { chip: 'bg-rose-100 text-rose-900', text: 'text-rose-600' },
+  positive: { chip: 'bg-primary text-primary-foreground', text: 'text-foreground' },
+  negative: { chip: 'bg-destructive text-destructive-foreground', text: 'text-foreground' },
   neutral: { chip: 'bg-muted text-muted-foreground', text: 'text-muted-foreground' }
 };
 
