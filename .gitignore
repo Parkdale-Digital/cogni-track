@@ -35,6 +35,7 @@ Thumbs.db
 # Temporary files
 .cache/
 .temp/
+.tmp-run/
 
 # Coverage directory used by tools like istanbul
 coverage/
@@ -61,3 +62,4 @@ AGENTS.md
 CLAUDE.md
 openAI-data/
 .env.*
+pnpm-lock.yaml

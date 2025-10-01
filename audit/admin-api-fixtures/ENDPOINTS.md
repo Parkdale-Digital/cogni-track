@@ -67,7 +67,7 @@
 
 ### Shared Sanitization Rules
 - Capture responses with the smallest practical window (`start_time` = start of current UTC day, `bucket_width=1d`) to keep payloads small.
-- Replace real IDs with deterministic placeholders (`proj_fixture_alpha`, `user_fixture_beta`, `key_fixture_gamma`) while preserving field presence for grouping scenarios.
+- Reuse canonical project identifiers from `projects_list_fixture.json` (for example `proj_abc123`, `proj_xyz890`) so referential checks match metadata; keep user/key placeholders for non-critical fields.
 - Remove or blank `next_page` cursors unless pagination is explicitly under test; document any retained cursor in the accompanying notes.
 - Strip timestamps to ISO strings when present (`start_time_iso`) so dedupe comparisons remain deterministic.
 - After editing JSON, run `jq -S '.'` for stable key ordering before hashing.

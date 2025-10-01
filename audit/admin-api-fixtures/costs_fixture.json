@@ -12,7 +12,7 @@
             "value": 12.34,
             "currency": "usd"
           },
-          "project_id": "proj_fixture_theta",
+          "project_id": "proj_abc123",
           "line_item": "usage.completions"
         },
         {
@@ -27,6 +27,6 @@
       ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/costs?page=token_fixture_page2"
 }

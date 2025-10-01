@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { eq, and } from 'drizzle-orm';
-import { db, schema } from '../../../../lib/database';
+import { getDb, schema } from '../../../../lib/database';
 import { encrypt, decrypt } from '../../../../lib/encryption';
 
 type RouteParams = Record<string, string | string[]>;
@@ -67,7 +67,7 @@ export async function GET(
 ) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -77,6 +77,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid key ID' }, { status: 400 });
     }
 
+    const db = getDb();
     const [providerKey] = await db
       .select()
       .from(schema.providerKeys)
@@ -128,7 +129,7 @@ export async function PUT(
 ) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -138,6 +139,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid key ID' }, { status: 400 });
     }
 
+    const db = getDb();
     const body = await request.json();
     const { apiKey, usageMode, organizationId, projectId } = body;
 
@@ -259,7 +261,7 @@ export async function DELETE(
 ) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -269,6 +271,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid key ID' }, { status: 400 });
     }
 
+    const db = getDb();
     // Check if the key exists and belongs to the user
     const [existingKey] = await db
       .select()

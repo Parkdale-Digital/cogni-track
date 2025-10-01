@@ -9,11 +9,11 @@
         {
           "object": "organization.usage.vector_stores.result",
           "usage_bytes": 1048576,
-          "project_id": "proj_fixture_zeta"
+          "project_id": "proj_xyz890"
         }
       ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/usage/vector_stores?page=token_fixture_page2"
 }

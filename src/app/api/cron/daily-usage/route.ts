@@ -32,10 +32,11 @@ export async function GET(request: NextRequest) {
     console.log('Starting daily usage fetch cron job');
 
     // Import database dependencies
-    const { db } = await import('../../../../lib/database');
+    const { getDb } = await import('../../../../lib/database');
     const { users } = await import('../../../../db/schema');
 
     // Get all users in the system
+    const db = getDb();
     const allUsers = await db.select({ id: users.id }).from(users);
     
     console.log(`Found ${allUsers.length} users to process`);

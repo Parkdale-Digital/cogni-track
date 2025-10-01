@@ -1,5 +1,5 @@
 import { decrypt } from './encryption';
-import { db } from './database';
+import { getDb } from './database';
 import { providerKeys, usageEvents } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 
@@ -77,8 +77,24 @@ export interface IngestionTelemetry {
 const OPENAI_USAGE_MODE = (process.env.OPENAI_USAGE_MODE ?? 'standard').toLowerCase() as OpenAIUsageMode;
 const OPENAI_ORGANIZATION = process.env.OPENAI_ORGANIZATION ?? process.env.OPENAI_ORG_ID ?? undefined;
 const OPENAI_PROJECT = process.env.OPENAI_PROJECT ?? process.env.OPENAI_PROJECT_ID ?? undefined;
-const OPENAI_ADMIN_LIMIT = Math.max(1, Math.min(Number(process.env.OPENAI_ADMIN_LIMIT ?? 31), 31));
+function asFiniteNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const OPENAI_ADMIN_LIMIT = Math.max(1, Math.min(asFiniteNumber(process.env.OPENAI_ADMIN_LIMIT, 31), 31));
 const ENABLE_SIMULATED_USAGE = (process.env.ENABLE_SIMULATED_USAGE ?? 'false').toLowerCase() === 'true';
+const ADMIN_REQUESTS_PER_MINUTE = Math.max(
+  1,
+  Math.min(asFiniteNumber(process.env.OPENAI_ADMIN_REQUESTS_PER_MINUTE, 50), 60)
+);
+const ADMIN_MAX_BURST = Math.max(1, asFiniteNumber(process.env.OPENAI_ADMIN_MAX_BURST, 10));
+const ADMIN_THROTTLE_WINDOW_SECONDS = 60;
+const ADMIN_THROTTLE_TIMEOUT_MS = Math.max(
+  1000,
+  asFiniteNumber(process.env.OPENAI_ADMIN_THROTTLE_TIMEOUT_MS, 60000)
+);
 
 type TokenPricing = {
   input: number;
@@ -123,6 +139,53 @@ if (pricingOverrideEnv) {
 }
 
 const PRICING_FALLBACK_WARNINGS = new Set<string>();
+let adminThrottleQueue: Promise<void> = Promise.resolve();
+let adminTokens = ADMIN_MAX_BURST;
+let adminLastRefill = Date.now();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function refillAdminTokens(): void {
+  const now = Date.now();
+  const elapsedSeconds = (now - adminLastRefill) / 1000;
+  if (elapsedSeconds <= 0) return;
+  const tokensToAdd = elapsedSeconds * (ADMIN_REQUESTS_PER_MINUTE / ADMIN_THROTTLE_WINDOW_SECONDS);
+  if (tokensToAdd > 0) {
+    adminTokens = Math.min(ADMIN_MAX_BURST, adminTokens + tokensToAdd);
+    adminLastRefill = now;
+  }
+}
+
+async function acquireAdminToken(): Promise<void> {
+  if (ADMIN_REQUESTS_PER_MINUTE <= 0) return;
+  const start = Date.now();
+  while (true) {
+    refillAdminTokens();
+    if (adminTokens >= 1) {
+      adminTokens -= 1;
+      return;
+    }
+    const now = Date.now();
+    const elapsed = now - start;
+    if (elapsed > ADMIN_THROTTLE_TIMEOUT_MS) {
+      throw new Error('Admin throttle timed out while waiting for token');
+    }
+    const tokensNeeded = Math.max(0, 1 - adminTokens);
+    const refillRatePerMs = ADMIN_REQUESTS_PER_MINUTE / (ADMIN_THROTTLE_WINDOW_SECONDS * 1000);
+    const timeUntilNextTokenMs = tokensNeeded > 0 ? Math.ceil(tokensNeeded / refillRatePerMs) : 1;
+    const remainingTimeoutMs = Math.max(1, ADMIN_THROTTLE_TIMEOUT_MS - elapsed);
+    await sleep(Math.min(timeUntilNextTokenMs, remainingTimeoutMs));
+  }
+}
+
+function throttleAdminRequest(): Promise<void> {
+  adminThrottleQueue = adminThrottleQueue
+    .catch(() => undefined)
+    .then(() => acquireAdminToken());
+  return adminThrottleQueue;
+}
 
 interface UsageModeConfiguration {
   mode: OpenAIUsageMode;
@@ -255,13 +318,39 @@ function asDate(epochSeconds?: number, fallback?: Date): Date {
   return new Date(millis);
 }
 
-async function retryFetch(url: string, init: RequestInit, attempts = 3, baseDelayMs = 300): Promise<Response> {
+function parseRetryAfter(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, seconds * 1000);
+  }
+  const date = Date.parse(header);
+  if (!Number.isNaN(date)) {
+    return Math.max(0, date - Date.now());
+  }
+  return null;
+}
+
+async function retryFetch(
+  url: string,
+  init: RequestInit,
+  attempts = 3,
+  baseDelayMs = 300,
+  respectRetryAfter = false
+): Promise<Response> {
   let lastError: unknown = null;
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch(url, init);
       if (res.status === 429 || res.status >= 500) {
         lastError = new Error(`HTTP ${res.status}`);
+        if (respectRetryAfter) {
+          const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
+          if (retryAfterMs !== null && retryAfterMs > 0) {
+            await sleep(retryAfterMs);
+            continue;
+          }
+        }
       } else {
         return res;
       }
@@ -269,7 +358,7 @@ async function retryFetch(url: string, init: RequestInit, attempts = 3, baseDela
       lastError = err;
     }
     const jitter = Math.floor(Math.random() * 250);
-    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (i + 1) + jitter));
+    await sleep(baseDelayMs * (i + 1) + jitter);
   }
   throw lastError ?? new Error('Unknown fetch error');
 }
@@ -312,17 +401,26 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], timestamp: Date
     const tokensIn = safeNumber(item.input_tokens ?? item.prompt_tokens ?? item.usage?.prompt_tokens ?? 0);
     const tokensOut = safeNumber(item.output_tokens ?? item.completion_tokens ?? item.usage?.completion_tokens ?? 0);
     let cost = safeNumber(item.cost ?? item.amount ?? item.usage?.total_cost ?? 0);
+    let pricingKey: string | undefined;
+    let pricingFallback: boolean | undefined;
     if (cost <= 0) {
-      const { amount } = calculateCost(model, tokensIn, tokensOut);
-      cost = amount;
+      const estimate = calculateCost(model, tokensIn, tokensOut);
+      cost = estimate.amount;
+      pricingKey = estimate.pricingKey;
+      pricingFallback = estimate.fallback;
     }
-    return {
+    const usageEvent: UsageEventData = {
       model,
       tokensIn,
       tokensOut,
       costEstimate: Number(cost.toFixed(6)),
       timestamp,
     };
+    if (pricingKey !== undefined || pricingFallback !== undefined) {
+      usageEvent.pricingKey = pricingKey;
+      usageEvent.pricingFallback = pricingFallback;
+    }
+    return usageEvent;
   });
 }
 
@@ -353,7 +451,8 @@ async function fetchAdminUsage(
   let safety = 0;
   while (safety < 20) {
     safety += 1;
-    const response = await retryFetch(current.toString(), { headers }, 3, 500);
+    await throttleAdminRequest();
+    const response = await retryFetch(current.toString(), { headers }, 3, 500, true);
     if (response.status === 401 || response.status === 403) {
       const body = await response.text();
       throw new OpenAIUsageError(body || 'Unauthorized', 'SCOPE_MISSING');
@@ -491,6 +590,7 @@ export async function fetchAndStoreUsageForUser(
   daysBack: number = 1
 ): Promise<IngestionTelemetry> {
   try {
+    const db = getDb();
     const userKeys = await db
       .select()
       .from(providerKeys)

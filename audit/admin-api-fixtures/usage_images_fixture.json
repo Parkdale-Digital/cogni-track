@@ -13,13 +13,13 @@
           "size": "512x512",
           "source": "image.generation",
           "model": "gpt-image-1",
-          "project_id": "proj_fixture_gamma",
+          "project_id": "proj_abc123",
           "user_id": "user_fixture_gamma",
           "api_key_id": "key_fixture_gamma"
         }
       ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/usage/images?page=token_fixture_page2"
 }

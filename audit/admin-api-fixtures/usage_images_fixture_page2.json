@@ -1,0 +1,25 @@
+{
+  "object": "page",
+  "data": [
+    {
+      "object": "bucket",
+      "start_time": 1730505600,
+      "end_time": 1730592000,
+      "results": [
+        {
+          "object": "organization.usage.images.result",
+          "images": 2,
+          "num_model_requests": 2,
+          "size": "1024x1024",
+          "source": "image.edit",
+          "model": "gpt-image-1",
+          "project_id": "proj_xyz890",
+          "user_id": "user_fixture_delta",
+          "api_key_id": "key_fixture_delta"
+        }
+      ]
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

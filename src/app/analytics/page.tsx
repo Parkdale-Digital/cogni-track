@@ -1,7 +1,7 @@
 import React from 'react';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import { db } from '../../lib/database';
+import { getDb } from '../../lib/database';
 import { usageEvents, providerKeys } from '../../db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 import RefreshButton from '../../components/RefreshButton';
@@ -22,6 +22,7 @@ interface UsageEvent {
 
 async function getUsageData(userId: string): Promise<UsageEvent[]> {
   try {
+    const db = getDb();
     const events = await db
       .select({
         id: usageEvents.id,

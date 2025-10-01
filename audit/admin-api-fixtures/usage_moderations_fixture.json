@@ -10,7 +10,7 @@
           "object": "organization.usage.moderations.result",
           "input_tokens": 128,
           "num_model_requests": 2,
-          "project_id": "proj_fixture_beta",
+          "project_id": "proj_xyz890",
           "user_id": "user_fixture_beta",
           "api_key_id": "key_fixture_beta",
           "model": "text-moderation-007"
@@ -18,6 +18,6 @@
       ]
     }
   ],
-  "has_more": false,
-  "next_page": null
+  "has_more": true,
+  "next_page": "https://api.openai.com/v1/organization/usage/moderations?page=token_fixture_page2"
 }
