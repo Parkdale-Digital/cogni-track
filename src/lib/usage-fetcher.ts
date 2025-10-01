@@ -787,7 +787,6 @@ export async function fetchAndStoreUsageForUser(
           } catch (error) {
             if (error instanceof UsageConfigurationError) {
               telemetry.failedKeys += 1;
-              failureCountedForKey = true;
               telemetry.issues.push({
                 keyId: keyRecord.id,
                 message: error.message,
