@@ -230,11 +230,57 @@ const CONSTRAINT_MISSING_SQLSTATE_CODES = new Set(['42P10', '42704']);
 
 type UsageEventInsert = typeof usageEvents.$inferInsert;
 
-const usageAdminBucketConstraint: IndexColumn | IndexColumn[] | undefined =
-  'usageAdminBucketIdx' in usageEvents
-    ? (usageEvents as typeof usageEvents & { usageAdminBucketIdx?: IndexColumn | IndexColumn[] })
-        .usageAdminBucketIdx
-    : undefined;
+const DRIZZLE_EXTRA_CONFIG_BUILDER = Symbol.for('drizzle:ExtraConfigBuilder');
+const DRIZZLE_EXTRA_CONFIG_COLUMNS = Symbol.for('drizzle:ExtraConfigColumns');
+
+function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
+  const extraConfigBuilder = (usageEvents as Record<symbol, unknown>)[DRIZZLE_EXTRA_CONFIG_BUILDER];
+  if (typeof extraConfigBuilder !== 'function') {
+    return undefined;
+  }
+
+  const extraConfigColumns = (usageEvents as Record<symbol, unknown>)[DRIZZLE_EXTRA_CONFIG_COLUMNS];
+  try {
+    const extraConfig = (extraConfigBuilder as (columns: unknown) => unknown)(extraConfigColumns);
+    const maybeBuilder =
+      extraConfig && typeof extraConfig === 'object'
+        ? Array.isArray(extraConfig)
+          ? extraConfig.find(
+              (entry): entry is { config?: { name?: string; columns?: IndexColumn[] } } & {
+                build?: (table: typeof usageEvents) => { config?: { columns?: IndexColumn[] } };
+              } =>
+                !!entry &&
+                typeof entry === 'object' &&
+                'config' in entry &&
+                (entry as { config?: { name?: string } }).config?.name === USAGE_ADMIN_BUCKET_CONSTRAINT_NAME
+            )
+          : (extraConfig as Record<string, unknown>)[
+              'usageAdminBucketIdx'
+            ]
+        : undefined;
+
+    if (!maybeBuilder || typeof maybeBuilder !== 'object') {
+      return undefined;
+    }
+
+    if (typeof (maybeBuilder as { build?: unknown }).build === 'function') {
+      const built = (maybeBuilder as {
+        build: (table: typeof usageEvents) => { config?: { columns?: IndexColumn[] } };
+      }).build(usageEvents);
+      return built?.config?.columns as IndexColumn[] | undefined;
+    }
+
+    const columns = (maybeBuilder as { config?: { columns?: IndexColumn[] } }).config?.columns;
+    return columns as IndexColumn[] | undefined;
+  } catch (error) {
+    console.warn('[usage-fetcher] Failed to resolve usage_admin_bucket_idx metadata', {
+      error: error instanceof Error ? error.message : error,
+    });
+    return undefined;
+  }
+}
+
+const usageAdminBucketConstraint = resolveUsageAdminBucketConstraint();
 
 let loggedMissingUsageConstraint = false;
 
@@ -380,6 +426,8 @@ async function upsertUsageEventWithManualDedupe(
   payload: UsageEventInsert,
   updatePayload: UsageEventUpdatePayload
 ): Promise<'inserted' | 'updated'> {
+  const manualInsertBuilder = db.insert(usageEvents).values(payload);
+
   const [existing] = await db
     .select({ id: usageEvents.id })
     .from(usageEvents)
@@ -387,10 +435,7 @@ async function upsertUsageEventWithManualDedupe(
     .limit(1);
 
   if (!existing) {
-    const [result] = await db
-      .insert(usageEvents)
-      .values(payload)
-      .returning({ inserted: sql<boolean>`(xmax = 0)` });
+    const [result] = await manualInsertBuilder.returning({ inserted: sql<boolean>`(xmax = 0)` });
 
     return result?.inserted ? 'inserted' : 'updated';
   }
