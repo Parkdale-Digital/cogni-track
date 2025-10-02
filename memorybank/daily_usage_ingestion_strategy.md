@@ -13,28 +13,28 @@
    - Track per-user/per-key cursors to avoid redundant calls when ingestion is healthy.
 
 2. **Backfill Routine**
-   - Introduce server action or CLI `pnpm usage:backfill --days=30 --user=<id>`.
-   - Loop downward from `now - days` to `now`, invoking a `fetchOpenAIDay` helper to ingest one day at a time.
-   - Continue using unique indexes to dedupe; log processed vs skipped counts per day.
+   - Provide CLI entry point `pnpm usage:backfill --days=30 --chunk-days=3 --label=<run>` (see `scripts/usage-backfill.ts`).
+   - Loop downward from `now - days` to `now`, invoking a per-day helper to ingest one window at a time while respecting throttle limits.
+   - On insert conflicts, rely on the insert+update fallback (`fetchAndStoreUsageForUser` catches `23505` and issues an explicit `UPDATE` keyed by the dedupe tuple) so ingestion stays resilient even when Drizzle metadata drops index expressions.
+   - Emit structured telemetry per chunk (windows processed, simulated/failing keys, issues) for audit logging.
 
 3. **Per-Day Helper**
-   - Extract logic from `fetchOpenAIUsage` so it accepts `(start, end)` window.
-   - Admin mode: call `/v1/organization/usage/completions?start_time=<start>&end_time=<end>`.
-   - Standard mode: same for `/v1/usage` (if API supports `end_time` per-day) otherwise post-filter results.
-   - Store canonical `window_start`/`window_end` columns for dedupe + reporting.
+   - `fetchOpenAIUsage` now accepts `(start, end)` and returns metadata-rich buckets; helpers derive daily windows via `buildDailyWindows`.
+   - Admin mode: call `/v1/organization/usage/completions?start_time=<start>&end_time=<end>` with `OpenAI-Organization`/`OpenAI-Project` headers (per key metadata decrypted at runtime).
+   - Standard mode: call `/v1/usage` and post-filter when the API lacks explicit `end_time` controls.
+   - Persist canonical `window_start`/`window_end` columns required by the dedupe tuple; ingestion must only run against databases that have applied migration `0003_usage_event_windows.sql` (adds window + metadata fields).
 
 4. **Telemetry**
    - Emit structured logs: `{ userId, keyId, windowStart, storedEvents, skippedEvents, issues }`.
    - Publish metrics for job duration, API errors, and eventual parity check results.
 
 ## Scheduling Details
-- **Backoff**: Implement token bucket (already in admin throttle) to stagger daily requests.
-- **Retries**: Use existing `retryFetch` but expand to respect `Retry-After` for 429s.
-- **Idempotency**: Combination of `(keyId, window_start, model)` unique key ensures safe replays.
-- **Retention**: Keep only latest 90 days in DB? (TBD) For now, plan on 30-day rolling window to mirror OpenAI dashboard defaults.
+- **Backoff**: Shared token bucket (`OPENAI_ADMIN_REQUESTS_PER_MINUTE` / `OPENAI_ADMIN_MAX_BURST`) paces both cron and backfill traffic; retries respect `Retry-After`.
+- **Idempotency**: Dedupe keyed on `(key_id, model, window_start, project_id?, api_key_id?, user_id?, service_tier?, batch?)`; insert+update fallback keeps the tuple authoritative.
+- **Retention**: Maintain the 35-day buffer (30-day parity + 5-day retry window). Prune older buckets once parity validation passes.
+- **Schema gates**: Staging/prod must apply migration `0003_usage_event_windows.sql` before enabling cron/backfill; otherwise inserts will fail on missing `window_start`/metadata columns.
 
-## Open Questions
-- Do we store cursor per user or per key? (per key recommended due to org admin mode sharing projects.)
-- Should cron job run per user in parallel? Need rate-limit plan before implementation.
-- How to authenticate cron trigger in production (e.g., Vercel cron secret header).
-
+## Operational Checklist
+- Track ingestion cursors per key (already supported by namespaced endpoints); confirm admin metadata decrypt succeeds before enabling cron.
+- Document staging rehearsal requirements: run CLI with anonymized data, archive telemetry in `audit/backfill-rehearsal/`, and verify migrations applied.
+- Auth guard: Continue requiring `CRON_SECRET` header for daily job; include run labels in logs for traceability.
