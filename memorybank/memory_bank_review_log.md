@@ -16,3 +16,8 @@
 2025-09-30 – Memory review after updating schema/relations for OpenAI admin support.
 2025-09-30 – Memory review after schema parity verification and audit note update.
 2025-10-01 – Memory review after documenting admin bucket upsert constraint widening and spike metadata assertions.
+2025-10-01 – Memory review after logging cron telemetry instrumentation and creating audit evidence stubs.
+2025-10-01 – Memory review after landing backfill CLI, usage fetcher window overrides, and updating plan confidence artefacts.
+2025-10-01 – Memory review after adding backfill confidence uplift tasks and rehearsal audit log scaffolding.
+2025-10-02 – Memory review after fixing usage event upsert constraint error and documenting staging rehearsal outcomes.
+2025-10-02 – Memory review after switching to insert/update fallback and noting staging schema gap (`window_start` missing).

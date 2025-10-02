@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx tests/costAlerts.test.ts"
+    "test": "tsx tests/costAlerts.test.ts",
+    "usage:backfill": "tsx scripts/usage-backfill.ts"
   },
   "keywords": [],
   "author": "",

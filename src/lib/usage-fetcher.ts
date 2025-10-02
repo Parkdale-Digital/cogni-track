@@ -105,6 +105,29 @@ interface UsageWindow {
 
 type FailureMarkedError = Error & { _usageFailureCounted?: boolean };
 
+type DateInput = Date | string | number;
+
+export interface FetchUsageOptions {
+  startDate?: DateInput;
+  endDate?: DateInput;
+  runLabel?: string;
+}
+
+function parseDateInput(value?: DateInput): Date | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed =
+    value instanceof Date ? new Date(value.getTime()) : new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('[usage-fetcher] Invalid date input provided to fetchAndStoreUsageForUser');
+  }
+
+  return parsed;
+}
+
 export interface IngestionIssue {
   keyId: number;
   message: string;
@@ -194,11 +217,39 @@ const PRICING_FALLBACK_WARNINGS = new Set<string>();
 let adminThrottleQueue: Promise<void> = Promise.resolve();
 let adminTokens = ADMIN_MAX_BURST;
 let adminLastRefill = Date.now();
-const usageAdminBucketConstraint = (usageEvents as typeof usageEvents & {
-  usageAdminBucketIdx?: unknown;
-}).usageAdminBucketIdx;
-// Drizzle's type surface drops index metadata once expression columns are involved; cast back so we can
-// reference the named constraint when issuing ON CONFLICT upserts.
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const usageEventColumnTuples = [
+  ['key_id', 'keyId'],
+  ['model', 'model'],
+  ['tokens_in', 'tokensIn'],
+  ['tokens_out', 'tokensOut'],
+  ['cost_estimate', 'costEstimate'],
+  ['timestamp', 'timestamp'],
+  ['window_start', 'windowStart'],
+  ['window_end', 'windowEnd'],
+  ['project_id', 'projectId'],
+  ['openai_user_id', 'openaiUserId'],
+  ['openai_api_key_id', 'openaiApiKeyId'],
+  ['service_tier', 'serviceTier'],
+  ['batch', 'batch'],
+  ['num_model_requests', 'numModelRequests'],
+  ['input_cached_tokens', 'inputCachedTokens'],
+  ['input_uncached_tokens', 'inputUncachedTokens'],
+  ['input_text_tokens', 'inputTextTokens'],
+  ['output_text_tokens', 'outputTextTokens'],
+  ['input_cached_text_tokens', 'inputCachedTextTokens'],
+  ['input_audio_tokens', 'inputAudioTokens'],
+  ['input_cached_audio_tokens', 'inputCachedAudioTokens'],
+  ['output_audio_tokens', 'outputAudioTokens'],
+  ['input_image_tokens', 'inputImageTokens'],
+  ['input_cached_image_tokens', 'inputCachedImageTokens'],
+  ['output_image_tokens', 'outputImageTokens'],
+] as const;
+
+const usageEventColumnsForUpdate = usageEventColumnTuples
+  .map(([, key]) => key)
+  .filter((key) => key !== 'keyId' && key !== 'model' && key !== 'windowStart');
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -735,8 +786,10 @@ function generateSimulatedUsage(startDate: Date, endDate: Date): UsageEventData[
 
 export async function fetchAndStoreUsageForUser(
   userId: string,
-  daysBack: number = 1
+  daysBack: number = 1,
+  options: FetchUsageOptions = {}
 ): Promise<IngestionTelemetry> {
+  let runLabel: string | undefined;
   try {
     const db = getDb();
     const userKeys = await db
@@ -756,13 +809,34 @@ export async function fetchAndStoreUsageForUser(
       issues: [],
     };
 
+    const overrideEnd = parseDateInput(options.endDate);
+    const overrideStart = parseDateInput(options.startDate);
+    const endDate = overrideEnd ?? new Date();
+    const startDate =
+      overrideStart ?? new Date(endDate.getTime() - Math.max(daysBack, 1) * MS_PER_DAY);
+
+    if (startDate > endDate) {
+      throw new Error('[usage-fetcher] startDate must be on or before endDate');
+    }
+
+    runLabel = options.runLabel;
+
     if (userKeys.length === 0) {
-      console.log(`[usage-fetcher] No OpenAI keys for user`, { userId });
+      console.log(`[usage-fetcher] No OpenAI keys for user`, {
+        userId,
+        ...(runLabel ? { runLabel } : {}),
+      });
       return telemetry;
     }
 
-    const endDate = new Date();
-    const startDate = new Date(endDate.getTime() - daysBack * 24 * 60 * 60 * 1000);
+    if (runLabel || overrideStart || overrideEnd) {
+      console.log('[usage-fetcher] Starting usage ingestion window', {
+        userId,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        ...(runLabel ? { runLabel } : {}),
+      });
+    }
 
     for (const keyRecord of userKeys) {
       try {
@@ -804,6 +878,7 @@ export async function fetchAndStoreUsageForUser(
                 keyId: keyRecord.id,
                 windowStart: windowRange.start.toISOString(),
                 error: error.message,
+                ...(runLabel ? { runLabel } : {}),
               });
               skipKey = true;
               break;
@@ -826,6 +901,7 @@ export async function fetchAndStoreUsageForUser(
                   keyId: keyRecord.id,
                   code: error.code,
                   windowStart: windowRange.start.toISOString(),
+                  ...(runLabel ? { runLabel } : {}),
                 });
                 usageData = generateSimulatedUsage(windowRange.start, windowRange.end);
               } else {
@@ -834,6 +910,7 @@ export async function fetchAndStoreUsageForUser(
                   keyId: keyRecord.id,
                   code: error.code,
                   windowStart: windowRange.start.toISOString(),
+                  ...(runLabel ? { runLabel } : {}),
                 });
                 telemetry.failedKeys += 1;
                 const err = error instanceof Error ? error : new Error(String(error));
@@ -851,6 +928,7 @@ export async function fetchAndStoreUsageForUser(
                 keyId: keyRecord.id,
                 windowStart: windowRange.start.toISOString(),
                 error: error instanceof Error ? error.message : error,
+                ...(runLabel ? { runLabel } : {}),
               });
               const err = error instanceof Error ? error : new Error(String(error));
               (err as FailureMarkedError)._usageFailureCounted = true;
@@ -900,39 +978,53 @@ export async function fetchAndStoreUsageForUser(
               outputImageTokens: usage.outputImageTokens ?? null,
             };
 
-            const result = await db
-              .insert(usageEvents)
-              .values(insertPayload)
-              .onConflictDoUpdate({
-                target: usageAdminBucketConstraint as any,
-                set: {
-                  tokensIn: insertPayload.tokensIn,
-                  tokensOut: insertPayload.tokensOut,
-                  costEstimate: insertPayload.costEstimate,
-                  timestamp: insertPayload.timestamp,
-                  windowEnd: insertPayload.windowEnd,
-                  projectId: insertPayload.projectId,
-                  openaiUserId: insertPayload.openaiUserId,
-                  openaiApiKeyId: insertPayload.openaiApiKeyId,
-                  serviceTier: insertPayload.serviceTier,
-                  batch: insertPayload.batch,
-                  numModelRequests: insertPayload.numModelRequests,
-                  inputCachedTokens: insertPayload.inputCachedTokens,
-                  inputUncachedTokens: insertPayload.inputUncachedTokens,
-                  inputTextTokens: insertPayload.inputTextTokens,
-                  outputTextTokens: insertPayload.outputTextTokens,
-                  inputCachedTextTokens: insertPayload.inputCachedTextTokens,
-                  inputAudioTokens: insertPayload.inputAudioTokens,
-                  inputCachedAudioTokens: insertPayload.inputCachedAudioTokens,
-                  outputAudioTokens: insertPayload.outputAudioTokens,
-                  inputImageTokens: insertPayload.inputImageTokens,
-                  inputCachedImageTokens: insertPayload.inputCachedImageTokens,
-                  outputImageTokens: insertPayload.outputImageTokens,
-                },
-              })
-              .returning({ inserted: sql<boolean>`(xmax = 0)` });
+            let wasInserted = false;
+            try {
+              const insertResult = await db
+                .insert(usageEvents)
+                .values(insertPayload)
+                .returning({ id: usageEvents.id });
 
-            const wasInserted = result[0]?.inserted ?? false;
+              wasInserted = insertResult.length > 0;
+            } catch (error) {
+              const isUniqueViolation =
+                typeof error === 'object' &&
+                error !== null &&
+                'code' in error &&
+                (error as { code?: string }).code === '23505';
+
+              if (!isUniqueViolation) {
+                throw error;
+              }
+
+              const updatePayload: Partial<typeof insertPayload> = {};
+              for (const key of usageEventColumnsForUpdate) {
+                updatePayload[key] = insertPayload[key];
+              }
+
+              const updateResult = await db
+                .update(usageEvents)
+                .set(updatePayload)
+                .where(
+                  and(
+                    eq(usageEvents.keyId, insertPayload.keyId),
+                    eq(usageEvents.model, insertPayload.model),
+                    eq(usageEvents.windowStart, insertPayload.windowStart),
+                    sql`COALESCE(${usageEvents.projectId}, '') = COALESCE(${insertPayload.projectId ?? ''}, '')`,
+                    sql`COALESCE(${usageEvents.openaiApiKeyId}, '') = COALESCE(${insertPayload.openaiApiKeyId ?? ''}, '')`,
+                    sql`COALESCE(${usageEvents.openaiUserId}, '') = COALESCE(${insertPayload.openaiUserId ?? ''}, '')`,
+                    sql`COALESCE(${usageEvents.serviceTier}, '') = COALESCE(${insertPayload.serviceTier ?? ''}, '')`,
+                    sql`COALESCE(${usageEvents.batch}, false) = COALESCE(${insertPayload.batch ?? false}, false)`
+                  )
+                )
+                .returning({ id: usageEvents.id });
+
+              if (updateResult.length === 0) {
+                throw error;
+              }
+
+              wasInserted = false;
+            }
             if (wasInserted) {
               newEventsCount += 1;
               telemetry.storedEvents += 1;
@@ -961,6 +1053,7 @@ export async function fetchAndStoreUsageForUser(
             updatedBuckets: updatedEventsCount,
             windows: processedWindows,
             fetched: totalFetched,
+            ...(runLabel ? { runLabel } : {}),
           });
         } else {
           console.log(`[usage-fetcher] Stored usage events`, {
@@ -970,6 +1063,7 @@ export async function fetchAndStoreUsageForUser(
             updatedBuckets: updatedEventsCount,
             windows: processedWindows,
             fetched: totalFetched,
+            ...(runLabel ? { runLabel } : {}),
           });
         }
 
@@ -994,10 +1088,18 @@ export async function fetchAndStoreUsageForUser(
           message: error instanceof Error ? error.message : 'Unknown ingestion error',
           code: error instanceof OpenAIUsageError ? error.code : undefined,
         });
+        console.error(error);
+        if (error && typeof error === 'object' && 'cause' in error) {
+          console.error('cause:', (error as { cause?: unknown }).cause);
+        }
+        if (error && typeof error === 'object') {
+          console.error('error keys:', Object.keys(error as Record<string, unknown>));
+        }
         console.error(`[usage-fetcher] Error processing key`, {
           userId,
           keyId: keyRecord.id,
           error: error instanceof Error ? error.message : error,
+          ...(runLabel ? { runLabel } : {}),
         });
       }
     }
@@ -1007,6 +1109,7 @@ export async function fetchAndStoreUsageForUser(
     console.error(`[usage-fetcher] Fatal ingestion error`, {
       userId,
       error: error instanceof Error ? error.message : error,
+      ...(runLabel ? { runLabel } : {}),
     });
     throw error;
   }

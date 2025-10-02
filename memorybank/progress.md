@@ -27,3 +27,9 @@
 2025-10-01 – Responded to PR review threads (window metadata upserts, telemetry increments, migration strategy) and clarified follow-ups; local `npm run build` showed no TypeScript errors post-fix.
 2025-10-01 – Broadened `usage_admin_bucket_idx` uniqueness to cover project/api key/user/tier/batch metadata and switched ingestion writes to a single Drizzle `onConflictDoUpdate` upsert keyed on the named constraint.
 2025-10-01 – Added dual completions fixture (`usage_completions_fixture_dual.json`) plus spike harness assertions so metadata-rich admin buckets survive dedupe; spike report now records the metadata buckets for audit.
+2025-10-01 – Instrumented cron daily usage route with aggregated telemetry output (windows processed, simulated/failing key counts, issues-by-code) and logged flag state prior to execution.
+2025-10-01 – Extended `fetchAndStoreUsageForUser` to accept explicit start/end window overrides and run labels for staged backfill control.
+2025-10-01 – Added chunked backfill CLI (`scripts/usage-backfill.ts`) with `pnpm usage:backfill` entry for historical ingestion runs and telemetry logging.
+2025-10-02 – Replaced Drizzle `onConflictDoUpdate` usage event upsert with raw `ON CONSTRAINT usage_admin_bucket_idx` SQL to avoid runtime `keyAsName` errors during backfills.
+2025-10-02 – Logged staging rehearsal outcomes in `audit/backfill-rehearsal/README.md`, capturing initial failure and post-fix validation run.
+2025-10-02 – Swapped raw upsert for insert+update fallback; detected staging Neon DB missing `window_start` column (migration `0003_usage_event_windows.sql`), blocking historical ingestion until schema is updated.
