@@ -226,6 +226,7 @@ let adminTokens = ADMIN_MAX_BURST;
 let adminLastRefill = Date.now();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const USAGE_ADMIN_BUCKET_CONSTRAINT_NAME = 'usage_admin_bucket_idx' as const;
+const CONSTRAINT_MISSING_SQLSTATE_CODES = new Set(['42P10', '42704']);
 
 type UsageEventInsert = typeof usageEvents.$inferInsert;
 
@@ -236,6 +237,39 @@ const usageAdminBucketConstraint: IndexColumn | IndexColumn[] | undefined =
     : undefined;
 
 let loggedMissingUsageConstraint = false;
+
+function isUsageConstraintMissingError(error: unknown): error is { code?: string } {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && CONSTRAINT_MISSING_SQLSTATE_CODES.has(code);
+}
+
+function logMissingUsageConstraintOnce(reason: 'metadata-missing' | 'constraint-missing', error?: unknown) {
+  if (loggedMissingUsageConstraint) {
+    return;
+  }
+
+  const details: Record<string, unknown> = { reason };
+  if (error && typeof error === 'object') {
+    const maybeMessage = (error as { message?: unknown }).message;
+    const maybeCode = (error as { code?: unknown }).code;
+    if (typeof maybeMessage === 'string') {
+      details.message = maybeMessage;
+    }
+    if (typeof maybeCode === 'string') {
+      details.code = maybeCode;
+    }
+  }
+
+  console.warn(
+    `[usage-fetcher] ${USAGE_ADMIN_BUCKET_CONSTRAINT_NAME} missing; using manual dedupe fallback`,
+    details
+  );
+  loggedMissingUsageConstraint = true;
+}
 
 const usageEventColumnsForUpdate = [
   'tokensIn',
@@ -341,37 +375,11 @@ function buildUsageEventMatchClause(payload: UsageEventInsert) {
   );
 }
 
-async function upsertUsageEvent(
+async function upsertUsageEventWithManualDedupe(
   db: ReturnType<typeof getDb>,
-  payload: UsageEventInsert
+  payload: UsageEventInsert,
+  updatePayload: UsageEventUpdatePayload
 ): Promise<'inserted' | 'updated'> {
-  const updatePayload = Object.fromEntries(
-    usageEventColumnsForUpdate.flatMap((key) => {
-      const value = payload[key];
-      return value === undefined ? [] : ([[key, value]] as const);
-    })
-  ) as UsageEventUpdatePayload;
-
-  if (usageAdminBucketConstraint) {
-    const [result] = await db
-      .insert(usageEvents)
-      .values(payload)
-      .onConflictDoUpdate({
-        target: usageAdminBucketConstraint,
-        set: updatePayload,
-      })
-      .returning({ inserted: sql<boolean>`(xmax = 0)` });
-
-    return result?.inserted ? 'inserted' : 'updated';
-  }
-
-  if (!loggedMissingUsageConstraint) {
-    console.warn(
-      `[usage-fetcher] ${USAGE_ADMIN_BUCKET_CONSTRAINT_NAME} missing; using manual dedupe fallback`
-    );
-    loggedMissingUsageConstraint = true;
-  }
-
   const [existing] = await db
     .select({ id: usageEvents.id })
     .from(usageEvents)
@@ -398,6 +406,43 @@ async function upsertUsageEvent(
     .where(eq(usageEvents.id, existing.id));
 
   return 'updated';
+}
+
+async function upsertUsageEvent(
+  db: ReturnType<typeof getDb>,
+  payload: UsageEventInsert
+): Promise<'inserted' | 'updated'> {
+  const updatePayload = Object.fromEntries(
+    usageEventColumnsForUpdate.flatMap((key) => {
+      const value = payload[key];
+      return value === undefined ? [] : ([[key, value]] as const);
+    })
+  ) as UsageEventUpdatePayload;
+
+  if (usageAdminBucketConstraint) {
+    try {
+      const [result] = await db
+        .insert(usageEvents)
+        .values(payload)
+        .onConflictDoUpdate({
+          target: usageAdminBucketConstraint,
+          set: updatePayload,
+        })
+        .returning({ inserted: sql<boolean>`(xmax = 0)` });
+
+      return result?.inserted ? 'inserted' : 'updated';
+    } catch (error) {
+      if (!isUsageConstraintMissingError(error)) {
+        throw error;
+      }
+
+      logMissingUsageConstraintOnce('constraint-missing', error);
+    }
+  } else {
+    logMissingUsageConstraintOnce('metadata-missing');
+  }
+
+  return upsertUsageEventWithManualDedupe(db, payload, updatePayload);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -1190,3 +1235,13 @@ export async function fetchAndStoreUsageForUser(
     throw new Error(`${message}: ${String(error)}`);
   }
 }
+
+export const __usageFetcherTestHooks = {
+  resetConstraintWarningFlag: () => {
+    loggedMissingUsageConstraint = false;
+  },
+  isConstraintMissingError,
+  buildUsageEventInsertPayloadForTest: buildUsageEventInsertPayload,
+  upsertUsageEventForTest: async (db: unknown, payload: UsageEventInsert) =>
+    upsertUsageEvent(db as ReturnType<typeof getDb>, payload),
+};

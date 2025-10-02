@@ -127,6 +127,7 @@ export const usageEventUniq = uniqueIndex('usage_admin_bucket_idx')
 - The dedupe key matches OpenAI grouping dimensions (project, API key, user, tier, batch) so concurrent buckets stay isolated.
 - Optional fields collapse to empty strings/false for uniqueness, ensuring "missing" metadata maps to a single row while still distinguishing populated fields.
 - Upsert statements should target `usage_admin_bucket_idx` to refresh metrics safely.
+- Monitoring: ingestion emits a single `usage_admin_bucket_idx missing; using manual dedupe fallback` warning when the index is absent. Ops should treat repeated warnings (>3/hour) as a cue to apply pending migrations before forecast buckets skew.
 
 ---
 

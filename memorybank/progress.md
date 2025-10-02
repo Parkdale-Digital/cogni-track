@@ -39,3 +39,5 @@
 2025-10-02 – Split usage_events migration into staged ALTER batches and extended unique index to include window_end, mirroring schema update in `src/db/schema.ts`.
 2025-10-02 – Simplified usage fetcher helpers (parseDateInput messaging, optional number casting) and routed bucket upsert through shared constraint fallback using the named window_end-aware index.
 2025-10-02 – Reworked analytics toggle controls with explicit labels and h3 hierarchy; ToggleGroup now supports aria-labelled roles to resolve PR accessibility feedback in `src/components/DataAggregation.tsx`.
+2025-10-02 – Hardened usage ingestion upsert: detect SQLSTATE 42P10/42704 errors when `usage_admin_bucket_idx` is absent, log once, and fall back to manual dedupe to keep ingestion running.
+2025-10-02 – Added constraint fallback regression tests (`tests/usageFetcherConstraintFallback.test.ts`) and bundled test runner to cover both cost alerts and ingestion dedupe cases.

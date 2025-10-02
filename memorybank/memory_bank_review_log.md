@@ -29,3 +29,4 @@
 2025-10-02 – Memory review after aligning drizzle/Next configs with Vercel build feedback and logging pending tsc issues for human follow-up.
 2025-10-02 – Memory review after fixing usage fetcher conflict payload typing and validating with tsc.
 2025-10-02 – Memory review after reconciling usage-fetcher merge, preserving typed conflict updates with manual fallback, and re-running tsc.
+2025-10-02 – Memory review after implementing usage ingestion constraint fallback, adding regression coverage, and documenting monitoring guidance.
