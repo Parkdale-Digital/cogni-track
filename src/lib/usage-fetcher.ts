@@ -2,6 +2,7 @@ import { decrypt } from './encryption';
 import { getDb } from './database';
 import { providerKeys, usageEvents } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
+import type { IndexColumn } from 'drizzle-orm/pg-core/indexes';
 
 type OpenAIUsageMode = 'standard' | 'admin';
 
@@ -218,42 +219,40 @@ let adminThrottleQueue: Promise<void> = Promise.resolve();
 let adminTokens = ADMIN_MAX_BURST;
 let adminLastRefill = Date.now();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const usageAdminBucketConstraint =
-  (usageEvents as typeof usageEvents & { usageAdminBucketIdx?: unknown }).usageAdminBucketIdx;
 
 type UsageEventInsert = typeof usageEvents.$inferInsert;
 
-const usageEventColumnTuples = [
-  ['key_id', 'keyId'],
-  ['model', 'model'],
-  ['tokens_in', 'tokensIn'],
-  ['tokens_out', 'tokensOut'],
-  ['cost_estimate', 'costEstimate'],
-  ['timestamp', 'timestamp'],
-  ['window_start', 'windowStart'],
-  ['window_end', 'windowEnd'],
-  ['project_id', 'projectId'],
-  ['openai_user_id', 'openaiUserId'],
-  ['openai_api_key_id', 'openaiApiKeyId'],
-  ['service_tier', 'serviceTier'],
-  ['batch', 'batch'],
-  ['num_model_requests', 'numModelRequests'],
-  ['input_cached_tokens', 'inputCachedTokens'],
-  ['input_uncached_tokens', 'inputUncachedTokens'],
-  ['input_text_tokens', 'inputTextTokens'],
-  ['output_text_tokens', 'outputTextTokens'],
-  ['input_cached_text_tokens', 'inputCachedTextTokens'],
-  ['input_audio_tokens', 'inputAudioTokens'],
-  ['input_cached_audio_tokens', 'inputCachedAudioTokens'],
-  ['output_audio_tokens', 'outputAudioTokens'],
-  ['input_image_tokens', 'inputImageTokens'],
-  ['input_cached_image_tokens', 'inputCachedImageTokens'],
-  ['output_image_tokens', 'outputImageTokens'],
-] as const;
+const usageAdminBucketConstraint =
+  (usageEvents as typeof usageEvents & { usageAdminBucketIdx?: IndexColumn | IndexColumn[] })
+    .usageAdminBucketIdx;
 
-const usageEventColumnsForUpdate = usageEventColumnTuples
-  .map(([, key]) => key as keyof UsageEventInsert)
-  .filter((key) => key !== 'keyId' && key !== 'model' && key !== 'windowStart');
+const usageEventColumnsForUpdate = [
+  'tokensIn',
+  'tokensOut',
+  'costEstimate',
+  'timestamp',
+  'windowEnd',
+  'projectId',
+  'openaiUserId',
+  'openaiApiKeyId',
+  'serviceTier',
+  'batch',
+  'numModelRequests',
+  'inputCachedTokens',
+  'inputUncachedTokens',
+  'inputTextTokens',
+  'outputTextTokens',
+  'inputCachedTextTokens',
+  'inputAudioTokens',
+  'inputCachedAudioTokens',
+  'outputAudioTokens',
+  'inputImageTokens',
+  'inputCachedImageTokens',
+  'outputImageTokens',
+] as const satisfies readonly (keyof UsageEventInsert)[];
+
+type UpdatableUsageEventColumn = (typeof usageEventColumnsForUpdate)[number];
+type UsageEventUpdatePayload = Partial<Pick<UsageEventInsert, UpdatableUsageEventColumn>>;
 
 function toNullable<T>(value: T | null | undefined): T | null {
   return value ?? null;
@@ -307,13 +306,20 @@ async function upsertUsageEvent(
   db: ReturnType<typeof getDb>,
   payload: UsageEventInsert
 ): Promise<'inserted' | 'updated'> {
-  const updatePayload: Partial<UsageEventInsert> = {};
-  for (const key of usageEventColumnsForUpdate) {
-    updatePayload[key] = payload[key];
-  }
+  const updatePayload = Object.fromEntries(
+    usageEventColumnsForUpdate.flatMap((key) => {
+      const value = payload[key];
+      return value === undefined ? [] : ([[key, value]] as const);
+    })
+  ) as UsageEventUpdatePayload;
 
-  const conflictTarget =
-    usageAdminBucketConstraint ?? [usageEvents.keyId, usageEvents.model, usageEvents.windowStart, usageEvents.windowEnd];
+  const conflictTarget: IndexColumn | IndexColumn[] =
+    usageAdminBucketConstraint ?? [
+      usageEvents.keyId,
+      usageEvents.model,
+      usageEvents.windowStart,
+      usageEvents.windowEnd,
+    ];
 
   const [result] = await db
     .insert(usageEvents)
