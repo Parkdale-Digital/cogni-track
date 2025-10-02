@@ -34,16 +34,16 @@ const STATUS_STYLES: Record<'safe' | 'warning' | 'danger', { badge: string; bord
     text: 'text-muted-foreground'
   },
   warning: {
-    badge: 'bg-amber-100 text-amber-900',
-    border: 'border-amber-200 bg-amber-50',
-    bar: 'bg-amber-500',
-    text: 'text-amber-800'
+    badge: 'bg-secondary text-secondary-foreground',
+    border: 'border-primary/40 bg-secondary',
+    bar: 'bg-secondary-foreground',
+    text: 'text-foreground'
   },
   danger: {
-    badge: 'bg-destructive/20 text-destructive',
-    border: 'border-destructive/40 bg-destructive/10',
+    badge: 'bg-destructive text-destructive-foreground',
+    border: 'border-destructive bg-destructive/15',
     bar: 'bg-destructive',
-    text: 'text-destructive'
+    text: 'text-foreground'
   }
 };
 
@@ -180,7 +180,7 @@ export default function CostAlerts({ events, className }: CostAlertsProps) {
       </div>
 
       {activeAlerts.length > 0 && (
-        <div className="border-b border-border bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="border-b border-destructive bg-destructive/15 px-4 py-3 text-sm text-foreground">
           <h3 className="font-medium">Active alerts</h3>
           <div className="mt-2 space-y-2">
             {activeAlerts.map(({ threshold, usage, alert }) => (

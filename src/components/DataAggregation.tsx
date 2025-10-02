@@ -169,8 +169,8 @@ export default function DataAggregation({ events, className }: DataAggregationPr
                   ]}
                 />
                 <Bar dataKey="requests" fill="hsl(var(--primary))" name="Requests" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="tokens" fill="hsl(var(--accent))" name="Tokens" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="cost" fill="hsl(var(--secondary))" name="Cost ($)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="tokens" fill="hsl(var(--muted-foreground))" name="Tokens" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="cost" fill="hsl(var(--secondary-foreground))" name="Cost ($)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
