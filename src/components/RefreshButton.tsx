@@ -17,8 +17,11 @@ export default function RefreshButton({ onRefresh, children, className }: Refres
   const router = useRouter();
 
   const handleClick = async () => {
-    if (!onRefresh) return;
-    
+    if (!onRefresh) {
+      router.refresh();
+      return;
+    }
+
     setIsLoading(true);
     try {
       const result = await onRefresh();
@@ -55,6 +58,7 @@ export default function RefreshButton({ onRefresh, children, className }: Refres
       type="button"
       onClick={handleClick}
       disabled={isLoading}
+      aria-busy={isLoading}
       className={className}
     >
       {isLoading ? 'Loading…' : children}

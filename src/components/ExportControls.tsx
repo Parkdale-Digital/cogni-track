@@ -22,6 +22,7 @@ interface ExportControlsProps {
 
 export default function ExportControls({ events, className }: ExportControlsProps) {
   const [isExporting, setIsExporting] = useState(false);
+  const isDisabled = isExporting || events.length === 0;
 
   const handleExportRawData = async () => {
     setIsExporting(true);
@@ -54,7 +55,8 @@ export default function ExportControls({ events, className }: ExportControlsProp
       <Button
         type="button"
         onClick={handleExportRawData}
-        disabled={isExporting || events.length === 0}
+        disabled={isDisabled}
+        aria-busy={isExporting}
         className="w-full gap-2 sm:w-auto"
       >
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -67,7 +69,8 @@ export default function ExportControls({ events, className }: ExportControlsProp
         type="button"
         variant="outline"
         onClick={handleExportSummary}
-        disabled={isExporting || events.length === 0}
+        disabled={isDisabled}
+        aria-busy={isExporting}
         className="w-full gap-2 sm:w-auto"
       >
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
