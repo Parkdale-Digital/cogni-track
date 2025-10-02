@@ -3,7 +3,7 @@
 import React from 'react';
 
 import { cn } from '@/lib/utils';
-import { calculateUsageGrowth } from '../lib/csv-export';
+import { calculateUsageGrowth } from '@/lib/csv-export';
 
 interface UsageEvent {
   id: number;

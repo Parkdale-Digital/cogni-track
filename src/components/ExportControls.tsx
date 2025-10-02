@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { exportUsageToCSV, exportUsageSummaryToCSV } from '../lib/csv-export';
+import { exportUsageSummaryToCSV, exportUsageToCSV } from '@/lib/csv-export';
 
 interface UsageEvent {
   id: number;
