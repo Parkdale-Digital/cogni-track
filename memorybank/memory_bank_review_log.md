@@ -26,3 +26,4 @@
 2025-10-02 – Memory review after capturing latest PR feedback summary and remediation plan (pending implementation).
 2025-10-02 – Memory review after updating usage fetcher upsert helper, migration/index hardening, and analytics toggle accessibility fixes.
 2025-10-02 – Memory review assessing daily_usage_alignment_plan status and outstanding validation tasks.
+2025-10-02 – Memory review after aligning drizzle/Next configs with Vercel build feedback and logging pending tsc issues for human follow-up.
