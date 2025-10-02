@@ -1240,7 +1240,7 @@ export const __usageFetcherTestHooks = {
   resetConstraintWarningFlag: () => {
     loggedMissingUsageConstraint = false;
   },
-  isConstraintMissingError,
+  isConstraintMissingError: isUsageConstraintMissingError,
   buildUsageEventInsertPayloadForTest: buildUsageEventInsertPayload,
   upsertUsageEventForTest: async (db: unknown, payload: UsageEventInsert) =>
     upsertUsageEvent(db as ReturnType<typeof getDb>, payload),

@@ -108,7 +108,8 @@ async function main() {
     assert.equal(db.selectCalls, 1, 'manual dedupe should query existing rows');
     assert.equal(db.updateCalls, 0, 'no update when record absent');
     assert.equal(warnings.length, 1, 'should log a single warning when fallback activates');
-    assert.match(String(warnings[0][0]), /usage_admin_bucket_idx/);
+    const [firstWarningMessage] = (warnings[0] as unknown[] | undefined) ?? [];
+    assert.match(String(firstWarningMessage ?? ''), /usage_admin_bucket_idx/);
 
     console.warn = originalWarn;
   }
@@ -142,7 +143,8 @@ async function main() {
       await __usageFetcherTestHooks.upsertUsageEventForTest(db as unknown, payload);
     } catch (error) {
       caught = true;
-      assert.equal(error, unexpectedError);
+      const typedError = error as Error & { code?: string };
+      assert.equal(typedError, unexpectedError);
     }
     assert.equal(caught, true, 'unexpected errors should bubble up');
   }
