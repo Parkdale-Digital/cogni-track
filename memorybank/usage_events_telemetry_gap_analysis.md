@@ -61,3 +61,5 @@ Derived data in app UI relies only on these fields; cost is inferred via `calcul
 2. Should we represent cost per row or compute at query time using captured tier + cached splits?
 3. How do we map `batch` and `service_tier` into customer-facing concepts?
 
+## Tooling Updates (2025-10-02)
+- Added `scripts/usage-telemetry-diff.ts` to compare OpenAI CSV exports against staging `usage_events` buckets across metadata dimensions. Requires staging `DATABASE_URL` (or run with `--skip-db` for CSV-only summaries) and stores diff artefacts under `audit/telemetry-audit/`.

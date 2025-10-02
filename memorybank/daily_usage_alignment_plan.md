@@ -72,8 +72,9 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
 
 ### Pending Validation
 - Drizzle snapshot regeneration (`pnpm drizzle-kit generate`) awaiting staging environment with `DATABASE_URL` access.
+- Stage telemetry diff via `tsx scripts/usage-telemetry-diff.ts` once migration 0003 lands (store JSON under `audit/telemetry-audit/`).
 
 ## Open Follow-Ups
 - Verify Vercel Cron header injection in staging before production rollout.
 - Define migration rollback SQL once column list is finalized.
-- Draft operator runbook covering cron secret rotation and parity alarm handling.
+- Operator runbook captured in `docs/daily_usage_cron_runbook.md`; still need parity alarm response section before production enablement.
