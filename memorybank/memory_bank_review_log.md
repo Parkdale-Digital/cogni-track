@@ -21,3 +21,7 @@
 2025-10-01 – Memory review after adding backfill confidence uplift tasks and rehearsal audit log scaffolding.
 2025-10-02 – Memory review after fixing usage event upsert constraint error and documenting staging rehearsal outcomes.
 2025-10-02 – Memory review after switching to insert/update fallback and noting staging schema gap (`window_start` missing).
+2025-10-02 – Memory review after logging local migration application status and identifying provider key seeding blocker for backfill rehearsals.
+
+2025-10-02 – Memory review after capturing latest PR feedback summary and remediation plan (pending implementation).
+2025-10-02 – Memory review after updating usage fetcher upsert helper, migration/index hardening, and analytics toggle accessibility fixes.

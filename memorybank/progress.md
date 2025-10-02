@@ -33,3 +33,9 @@
 2025-10-02 – Replaced Drizzle `onConflictDoUpdate` usage event upsert with raw `ON CONSTRAINT usage_admin_bucket_idx` SQL to avoid runtime `keyAsName` errors during backfills.
 2025-10-02 – Logged staging rehearsal outcomes in `audit/backfill-rehearsal/README.md`, capturing initial failure and post-fix validation run.
 2025-10-02 – Swapped raw upsert for insert+update fallback; detected staging Neon DB missing `window_start` column (migration `0003_usage_event_windows.sql`), blocking historical ingestion until schema is updated.
+2025-10-02 – Applied migrations `0000`-`0003` against local Postgres via `drizzle-kit push` to validate schema readiness; local backfill rehearsal now blocked earlier by missing seeded OpenAI provider keys.
+2025-10-02 – Refactored usage ingestion upsert to central helper with conflict-aware telemetry updates; daily window buckets now use normalized payload builder and upsert helper in `src/lib/usage-fetcher.ts`.
+2025-10-02 – Refactored usage ingestion upsert to a helper with conflict-aware telemetry; normalized bucket payload builder now feeds `src/lib/usage-fetcher.ts` daily window loop.
+2025-10-02 – Split usage_events migration into staged ALTER batches and extended unique index to include window_end, mirroring schema update in `src/db/schema.ts`.
+2025-10-02 – Simplified usage fetcher helpers (parseDateInput messaging, optional number casting) and routed bucket upsert through shared constraint fallback using the named window_end-aware index.
+2025-10-02 – Reworked analytics toggle controls with explicit labels and h3 hierarchy; ToggleGroup now supports aria-labelled roles to resolve PR accessibility feedback in `src/components/DataAggregation.tsx`.

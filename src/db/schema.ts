@@ -51,13 +51,14 @@ export const usageEvents = pgTable("usage_events", {
   inputCachedImageTokens: integer("input_cached_image_tokens"),
   outputImageTokens: integer("output_image_tokens"),
 }, (usageEvents) => ({
-  // NOTE: Column order mirrors the lookup order in fetchAndStoreUsageForUser (keyId → model → windowStart)
+  // NOTE: Column order mirrors the lookup order in fetchAndStoreUsageForUser (keyId → model → windowStart → windowEnd)
   // so modifications should evaluate query performance and dedupe semantics together.
   usageAdminBucketIdx: uniqueIndex("usage_admin_bucket_idx")
     .on(
       usageEvents.keyId,
       usageEvents.model,
       usageEvents.windowStart,
+      usageEvents.windowEnd,
       sql`COALESCE(${usageEvents.projectId}, '')`,
       sql`COALESCE(${usageEvents.openaiApiKeyId}, '')`,
       sql`COALESCE(${usageEvents.openaiUserId}, '')`,

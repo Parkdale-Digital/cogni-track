@@ -11,7 +11,9 @@ ALTER TABLE "usage_events"
     ADD COLUMN IF NOT EXISTS "openai_api_key_id" text,
     ADD COLUMN IF NOT EXISTS "service_tier" text,
     ADD COLUMN IF NOT EXISTS "batch" boolean,
-    ADD COLUMN IF NOT EXISTS "num_model_requests" integer,
+    ADD COLUMN IF NOT EXISTS "num_model_requests" integer;
+
+ALTER TABLE "usage_events"
     ADD COLUMN IF NOT EXISTS "input_cached_tokens" integer,
     ADD COLUMN IF NOT EXISTS "input_uncached_tokens" integer,
     ADD COLUMN IF NOT EXISTS "input_text_tokens" integer,
@@ -30,6 +32,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "usage_admin_bucket_idx"
         "key_id",
         "model",
         "window_start",
+        "window_end",
         COALESCE("project_id", ''),
         COALESCE("openai_api_key_id", ''),
         COALESCE("openai_user_id", ''),

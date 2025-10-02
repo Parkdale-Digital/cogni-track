@@ -122,7 +122,7 @@ function parseDateInput(value?: DateInput): Date | undefined {
     value instanceof Date ? new Date(value.getTime()) : new Date(value);
 
   if (Number.isNaN(parsed.getTime())) {
-    throw new Error('[usage-fetcher] Invalid date input provided to fetchAndStoreUsageForUser');
+    throw new Error('[usage-fetcher] Invalid date input provided');
   }
 
   return parsed;
@@ -218,6 +218,10 @@ let adminThrottleQueue: Promise<void> = Promise.resolve();
 let adminTokens = ADMIN_MAX_BURST;
 let adminLastRefill = Date.now();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const usageAdminBucketConstraint =
+  (usageEvents as typeof usageEvents & { usageAdminBucketIdx?: unknown }).usageAdminBucketIdx;
+
+type UsageEventInsert = typeof usageEvents.$inferInsert;
 
 const usageEventColumnTuples = [
   ['key_id', 'keyId'],
@@ -248,8 +252,80 @@ const usageEventColumnTuples = [
 ] as const;
 
 const usageEventColumnsForUpdate = usageEventColumnTuples
-  .map(([, key]) => key)
+  .map(([, key]) => key as keyof UsageEventInsert)
   .filter((key) => key !== 'keyId' && key !== 'model' && key !== 'windowStart');
+
+function toNullable<T>(value: T | null | undefined): T | null {
+  return value ?? null;
+}
+
+function deriveWindowBounds(usage: UsageEventData): { windowStart: Date; windowEnd: Date } {
+  const windowStart = usage.windowStart ?? startOfDayUtc(usage.timestamp);
+  const windowEnd = usage.windowEnd ?? addDays(windowStart, 1);
+  return { windowStart, windowEnd };
+}
+
+function buildUsageEventInsertPayload(
+  keyId: number,
+  usage: UsageEventData
+): UsageEventInsert {
+  const { windowStart, windowEnd } = deriveWindowBounds(usage);
+  const costEstimateNumber =
+    typeof usage.costEstimate === 'number' ? usage.costEstimate : Number(usage.costEstimate ?? 0);
+  const costEstimate = Number.isFinite(costEstimateNumber) ? costEstimateNumber : 0;
+
+  return {
+    keyId,
+    model: usage.model,
+    tokensIn: usage.tokensIn,
+    tokensOut: usage.tokensOut,
+    costEstimate: costEstimate.toFixed(6),
+    timestamp: usage.timestamp,
+    windowStart,
+    windowEnd,
+    projectId: toNullable(usage.projectId),
+    openaiUserId: toNullable(usage.openaiUserId),
+    openaiApiKeyId: toNullable(usage.openaiApiKeyId),
+    serviceTier: toNullable(usage.serviceTier),
+    batch: toNullable(usage.batch),
+    numModelRequests: toNullable(usage.numModelRequests),
+    inputCachedTokens: toNullable(usage.inputCachedTokens),
+    inputUncachedTokens: toNullable(usage.inputUncachedTokens),
+    inputTextTokens: toNullable(usage.inputTextTokens),
+    outputTextTokens: toNullable(usage.outputTextTokens),
+    inputCachedTextTokens: toNullable(usage.inputCachedTextTokens),
+    inputAudioTokens: toNullable(usage.inputAudioTokens),
+    inputCachedAudioTokens: toNullable(usage.inputCachedAudioTokens),
+    outputAudioTokens: toNullable(usage.outputAudioTokens),
+    inputImageTokens: toNullable(usage.inputImageTokens),
+    inputCachedImageTokens: toNullable(usage.inputCachedImageTokens),
+    outputImageTokens: toNullable(usage.outputImageTokens),
+  } satisfies UsageEventInsert;
+}
+
+async function upsertUsageEvent(
+  db: ReturnType<typeof getDb>,
+  payload: UsageEventInsert
+): Promise<'inserted' | 'updated'> {
+  const updatePayload: Partial<UsageEventInsert> = {};
+  for (const key of usageEventColumnsForUpdate) {
+    updatePayload[key] = payload[key];
+  }
+
+  const conflictTarget =
+    usageAdminBucketConstraint ?? [usageEvents.keyId, usageEvents.model, usageEvents.windowStart, usageEvents.windowEnd];
+
+  const [result] = await db
+    .insert(usageEvents)
+    .values(payload)
+    .onConflictDoUpdate({
+      target: conflictTarget,
+      set: updatePayload,
+    })
+    .returning({ inserted: sql<boolean>`(xmax = 0)` });
+
+  return result?.inserted ? 'inserted' : 'updated';
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -948,84 +1024,10 @@ export async function fetchAndStoreUsageForUser(
           processedWindows += 1;
 
           for (const usage of usageData) {
-            const windowStart = usage.windowStart ?? startOfDayUtc(usage.timestamp);
-            const windowEnd = usage.windowEnd ?? addDays(windowStart, 1);
-            const insertPayload = {
-              keyId: keyRecord.id,
-              model: usage.model,
-              tokensIn: usage.tokensIn,
-              tokensOut: usage.tokensOut,
-              costEstimate: usage.costEstimate.toFixed(6),
-              timestamp: usage.timestamp,
-              windowStart,
-              windowEnd,
-              projectId: usage.projectId ?? null,
-              openaiUserId: usage.openaiUserId ?? null,
-              openaiApiKeyId: usage.openaiApiKeyId ?? null,
-              serviceTier: usage.serviceTier ?? null,
-              batch: usage.batch ?? null,
-              numModelRequests: usage.numModelRequests ?? null,
-              inputCachedTokens: usage.inputCachedTokens ?? null,
-              inputUncachedTokens: usage.inputUncachedTokens ?? null,
-              inputTextTokens: usage.inputTextTokens ?? null,
-              outputTextTokens: usage.outputTextTokens ?? null,
-              inputCachedTextTokens: usage.inputCachedTextTokens ?? null,
-              inputAudioTokens: usage.inputAudioTokens ?? null,
-              inputCachedAudioTokens: usage.inputCachedAudioTokens ?? null,
-              outputAudioTokens: usage.outputAudioTokens ?? null,
-              inputImageTokens: usage.inputImageTokens ?? null,
-              inputCachedImageTokens: usage.inputCachedImageTokens ?? null,
-              outputImageTokens: usage.outputImageTokens ?? null,
-            };
+            const insertPayload = buildUsageEventInsertPayload(keyRecord.id, usage);
+            const upsertResult = await upsertUsageEvent(db, insertPayload);
 
-            let wasInserted = false;
-            try {
-              const insertResult = await db
-                .insert(usageEvents)
-                .values(insertPayload)
-                .returning({ id: usageEvents.id });
-
-              wasInserted = insertResult.length > 0;
-            } catch (error) {
-              const isUniqueViolation =
-                typeof error === 'object' &&
-                error !== null &&
-                'code' in error &&
-                (error as { code?: string }).code === '23505';
-
-              if (!isUniqueViolation) {
-                throw error;
-              }
-
-              const updatePayload: Partial<typeof insertPayload> = {};
-              for (const key of usageEventColumnsForUpdate) {
-                updatePayload[key] = insertPayload[key];
-              }
-
-              const updateResult = await db
-                .update(usageEvents)
-                .set(updatePayload)
-                .where(
-                  and(
-                    eq(usageEvents.keyId, insertPayload.keyId),
-                    eq(usageEvents.model, insertPayload.model),
-                    eq(usageEvents.windowStart, insertPayload.windowStart),
-                    sql`COALESCE(${usageEvents.projectId}, '') = COALESCE(${insertPayload.projectId ?? ''}, '')`,
-                    sql`COALESCE(${usageEvents.openaiApiKeyId}, '') = COALESCE(${insertPayload.openaiApiKeyId ?? ''}, '')`,
-                    sql`COALESCE(${usageEvents.openaiUserId}, '') = COALESCE(${insertPayload.openaiUserId ?? ''}, '')`,
-                    sql`COALESCE(${usageEvents.serviceTier}, '') = COALESCE(${insertPayload.serviceTier ?? ''}, '')`,
-                    sql`COALESCE(${usageEvents.batch}, false) = COALESCE(${insertPayload.batch ?? false}, false)`
-                  )
-                )
-                .returning({ id: usageEvents.id });
-
-              if (updateResult.length === 0) {
-                throw error;
-              }
-
-              wasInserted = false;
-            }
-            if (wasInserted) {
+            if (upsertResult === 'inserted') {
               newEventsCount += 1;
               telemetry.storedEvents += 1;
             } else {
