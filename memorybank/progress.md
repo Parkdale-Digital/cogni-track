@@ -41,3 +41,4 @@
 2025-10-02 – Reworked analytics toggle controls with explicit labels and h3 hierarchy; ToggleGroup now supports aria-labelled roles to resolve PR accessibility feedback in `src/components/DataAggregation.tsx`.
 2025-10-02 – Hardened usage ingestion upsert: detect SQLSTATE 42P10/42704 errors when `usage_admin_bucket_idx` is absent, log once, and fall back to manual dedupe to keep ingestion running.
 2025-10-02 – Added constraint fallback regression tests (`tests/usageFetcherConstraintFallback.test.ts`) and bundled test runner to cover both cost alerts and ingestion dedupe cases.
+2025-10-02 – Resolved drizzle.config.ts merge conflict; established env fallback chain (DRIZZLE_DATABASE_URL → LOCAL_DATABASE_URL → DATABASE_URL) and verified with `pnpm drizzle-kit check`.

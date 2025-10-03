@@ -32,3 +32,4 @@
 2025-10-02 – Memory review after renaming constraint helper export and tightening fallback tests to satisfy tsc.
 2025-10-02 – Memory review after implementing usage ingestion constraint fallback, adding regression coverage, and documenting monitoring guidance.
 2025-10-02 – Logged staging migration runbook, telemetry diff tooling, and cron runbook updates; pending parity alarm section.
+2025-10-02 – Memory review after resolving drizzle.config.ts conflict and updating env fallback documentation.
