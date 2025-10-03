@@ -9,43 +9,63 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
 - **Action**: Diff `usage_events` schema and sample rows against the latest OpenAI completions CSV exports to catalogue missing fields (project, key, service tier, cached tokens, etc.).
 - **Risks**: CSV schema drift or overlooked columns.
 - **Mitigation**: Script the diff, gather multiple exports (different projects/tiers), document findings in repo wiki.
-- **Confidence Uplift**: Pair scripted diff with manual spot-check of 3 representative project tiers and capture screenshots/logs in `audit/telemetry-audit/` for reviewer sign-off.
-- **Confidence**: 6/10 after cross-checking exports and updating documentation.
+- **Confidence Uplift Plan**:
+  1. Run `tsx scripts/usage-telemetry-diff.ts --csv openAI-data/completions_usage_2025-09-01_2025-10-01.csv --out audit/telemetry-audit/latest.json` against the latest sanitized staging snapshot.
+  2. Spot-check three representative project tiers, annotating discrepancies in `audit/telemetry-audit/README.md` and attaching screenshots for reviewer sign-off.
+  3. Log a summary entry in `memory_bank_review_log.md` with observed gaps and remediation tickets.
+- **Confidence Target**: 6/10 after cross-checking exports and publishing artefacts.
+  - Status 2025-10-02: CSV diff captured (`audit/telemetry-audit/latest.json`) with manual tier spot-check notes; staging DB comparison blocked pending migration 0003.
 
 ### 2. Ingestion Window & Scheduling
 - **Action**: Design cron/backfill workflow that requests up to 30 days of data and prevents future gaps via daily pulls.
 - **Risks**: API throttling, duplicate buckets.
 - **Mitigation**: Leverage existing unique indexes, add ingestion telemetry (processed/failed counts), implement rate limiting.
-- **Confidence Uplift**: Run a 48-hour staging dry-run with feature flag off in production, logging per-run metrics to `audit/cron-dry-run/summary.md` and reviewing throttling telemetry.
-- **Confidence**: 5/10 increasing to 7/10 once dry-run completes in sandbox with telemetry review.
+- **Confidence Uplift Plan**:
+  1. Apply migration `drizzle/0003_usage_event_windows.sql` in staging and document the run in `audit/migration-dry-run.md`.
+  2. Execute a 48-hour cron rehearsal with `ENABLE_DAILY_USAGE_WINDOWS` enabled only in staging and capture telemetry in `audit/cron-dry-run/summary.md`.
+  3. Review throttling metrics with Ops, recording adjustments in the cron runbook.
+- **Confidence Target**: 7/10 once staging rehearsal metrics are approved.
+  - Runbook: `audit/migration-prechecks/0003_usage_event_windows.md` defines staging apply/rollback steps (created 2025-10-02).
 
 ### 3. Per-Day Fetch Loop & Metadata Capture
 - **Action**: Refactor `fetchOpenAIUsage` to iterate day-by-day, persisting midnight UTC buckets along with metadata (project_id, num_model_requests, service tier, cached token splits, api_key_id).
 - **Risks**: Large payload parsing, schema drift, feature flag rollout.
 - **Mitigation**: Add contract tests using recorded OpenAI responses, guard JSON parsing, deploy behind feature flag with monitoring.
-- **Confidence Uplift**: Record golden fixtures for two high-volume tenants and assert bucket integrity via Jest snapshot tests before widening rollout.
-- **Confidence**: 4/10 baseline → 7/10 after contract tests and staged rollout succeed.
+- **Confidence Uplift Plan**:
+  1. Capture golden admin usage fixtures for two high-volume tenants and store them under `audit/golden-fixtures/daily-usage/`.
+  2. Add contract tests asserting bucket counts, metadata, and cached token splits using the new fixtures.
+  3. Run a feature-flagged staging dry-run to confirm per-day buckets remain stable before broad rollout.
+- **Confidence Target**: 7/10 after contract tests and staged rollout succeed.
 
 ### 4. Schema & API Extensions
 - **Action**: Add columns/migrations for new metadata, expose through `/api/usage`, ensure backward compatibility.
 - **Risks**: Migration downtime, inconsistent environments.
 - **Mitigation**: Ship additive migrations, backfill asynchronously, test in staging copy, keep rollback SQL ready.
-- **Confidence Uplift**: Execute migration against staging clone and document timings + query plans in `audit/migration-dry-run.md` for review before production apply.
-- **Confidence**: 5/10 → 8/10 post-staging validation and load test.
+- **Confidence Uplift Plan**:
+  1. Execute the additive migrations against a staging clone and record timings/query plans in `audit/migration-dry-run.md`.
+  2. Update `/api/usage` and downstream queries to expose the new metadata fields, with regression tests covering legacy clients.
+  3. Run a staging load test using the updated API to verify index performance, logging findings in `docs/ui-performance-notes.md`.
+- **Confidence Target**: 8/10 after staging validation and load testing.
 
 ### 5. Analytics UI & Export Updates
 - **Action**: Update charts/tables to plot daily buckets, add filters (project/key/tier), paginate exports, memoize transforms.
 - **Risks**: Performance regressions, UX mismatch.
 - **Mitigation**: Add unit/interaction tests, run Storybook snapshots, get UX sign-off.
-- **Confidence Uplift**: Capture baseline Lighthouse + React Profiler snapshots pre-change and compare after updates, logging deltas in `docs/ui-performance-notes.md`.
-- **Confidence**: 6/10 → 8/10 after performance profiling and review.
+- **Confidence Uplift Plan**:
+  1. Implement daily bucket charts, filters, and exports in the analytics UI using the new schema fields.
+  2. Capture baseline Lighthouse + React Profiler snapshots before and after the changes, tracking deltas in `docs/ui-performance-notes.md`.
+  3. Secure UX sign-off with annotated screenshots stored in `audit/ui-review/daily-usage/`.
+- **Confidence Target**: 8/10 after profiling and UX review.
 
 ### 6. Parity Validation Pipeline
 - **Action**: Build automated diff comparing Cogni Track API totals against OpenAI CSV totals per day; normalize timestamps to UTC and alert on variance.
 - **Risks**: Timezone errors, alert fatigue.
 - **Mitigation**: Document UTC contract, set conservative alert thresholds, add regression fixtures.
-- **Confidence Uplift**: Pilot diff job on three archived CSV exports, archive variance reports in `audit/parity-pilot/` and review with data QA before enabling alerts.
-- **Confidence**: 6/10 → 8/10 after regression tests and scheduled parity job run clean.
+- **Confidence Uplift Plan**:
+  1. Pilot the parity diff job on three archived CSV exports, storing variance reports in `audit/parity-pilot/`.
+  2. Tune UTC normalization and alert thresholds with data QA, documenting decisions in `docs/daily_usage_cron_runbook.md`.
+  3. Schedule the parity job in staging with alert routing to the on-call channel and capture outcomes in `memorybank/progress.md`.
+- **Confidence Target**: 8/10 after regression tests and scheduled parity job run clean.
 
 ## Confidence Boosters (Cross-Cutting)
 - Staging environment seeded with anonymized CSV data for repeatable verification.

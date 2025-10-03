@@ -33,3 +33,6 @@
 2025-10-02 – Memory review after implementing usage ingestion constraint fallback, adding regression coverage, and documenting monitoring guidance.
 2025-10-02 – Logged staging migration runbook, telemetry diff tooling, and cron runbook updates; pending parity alarm section.
 2025-10-02 – Memory review after resolving drizzle.config.ts conflict and updating env fallback documentation.
+2025-10-02 – Recorded telemetry diff run (CSV-only) and archived results in audit/telemetry-audit/latest.json; staging DB comparison pending schema update.
+2025-10-02 – Logged manual CSV spot-check notes for default vs incentivized tiers and documented esbuild bundling workaround in audit/telemetry-audit/README.md.
+2025-10-02 – Authored staging runbook for migration 0003_usage_event_windows and queued follow-up telemetry diff post-apply.

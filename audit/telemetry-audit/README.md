@@ -23,8 +23,16 @@ tsx scripts/usage-telemetry-diff.ts \
 ```
 
 - Include `DATABASE_URL` in the environment to compare against staging; otherwise pass `--skip-db` to capture CSV-only totals.
+- In sandboxed environments where `tsx` IPC is blocked, bundle the script first: `pnpm exec esbuild scripts/usage-telemetry-diff.ts --bundle --format=esm --platform=node --target=node20 --outfile=tmp/usage-telemetry-diff.mjs` and run `node tmp/usage-telemetry-diff.mjs <flags>`.
 - Archive the generated JSON and any supporting notes in this directory with a timestamped filename.
 
+### 2025-10-02 CSV Spot-Check Notes
+- Project `proj_MhIbP1DyoTSqH6k2DtXVKvvV` (`incentivized-tier`, key `key_NF7ZLeXYAXECwqv7`) shows a single-request window on 2025-09-01 with 25,076 input / 4,737 output tokens (model `gpt-5-2025-08-07`).
+- Same project in `default` tier (key `key_mPAw5OyZbONR4dAL`) records 274 requests on 2025-09-02 totaling 30,856,737 input / 447,569 output tokens, confirming cached tokens remain zero.
+- No third service tier appears in the export; flagged as gap for future audits to capture additional tiers when available.
+
 ## Artefacts
+- 2025-10-02: `latest.json` (CSV-only diff against completions_usage_2025-09-01_2025-10-01.csv; staging DB comparison skipped).
+
 <!-- Add links to stored evidence files here. -->
 
