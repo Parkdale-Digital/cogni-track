@@ -1,0 +1,42 @@
+@import '../../../src/styles/tokens.css';
+
+:root {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--background));
+  font-family: var(--font-sans);
+}
+
+body {
+  font-family: var(--font-sans);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.heroBanner {
+  padding: 6rem 0;
+  text-align: center;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+  color: hsl(var(--primary-foreground));
+}
+
+.heroBanner h1,
+.heroBanner p {
+  color: inherit;
+}
+
+.button.button--primary {
+  background-color: hsl(var(--foreground));
+  color: hsl(var(--background));
+  border-radius: var(--radius);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.button.button--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.25);
+}
+
+.footer--dark {
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}

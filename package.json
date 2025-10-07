@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx tests/costAlerts.test.ts"
+    "test": "tsx tests/costAlerts.test.ts",
+    "docs": "npm run start --prefix docs-site",
+    "docs:build": "npm run build --prefix docs-site",
+    "docs:serve": "npm run serve --prefix docs-site"
   },
   "keywords": [],
   "author": "",
