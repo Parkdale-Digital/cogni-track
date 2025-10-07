@@ -36,3 +36,7 @@
 2025-10-02 – Recorded telemetry diff run (CSV-only) and archived results in audit/telemetry-audit/latest.json; staging DB comparison pending schema update.
 2025-10-02 – Logged manual CSV spot-check notes for default vs incentivized tiers and documented esbuild bundling workaround in audit/telemetry-audit/README.md.
 2025-10-02 – Authored staging runbook for migration 0003_usage_event_windows and queued follow-up telemetry diff post-apply.
+2025-10-02 – Ran staging telemetry diff (latest-staging.json); DB comparison succeeded after removing channel binding but 46 windows still missing pending backfill.
+2025-10-07 – Captured staging diff (2025-10-07T14-23-48Z.json); Neon HTTP fetch failure still blocks DB comparison, leaving 46 windows missing.
+2025-10-07 – Telemetry diff retry (2025-10-07T14-24-48Z.json) failed with Neon password auth; staging credentials need reissue before DB comparison.
+2025-10-07 – Admin usage backfill hit 'undefined' column errors from usage_admin_bucket_idx metadata; planning manual dedupe fallback before rerunning telemetry diff.

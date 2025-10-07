@@ -226,12 +226,33 @@ let adminTokens = ADMIN_MAX_BURST;
 let adminLastRefill = Date.now();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const USAGE_ADMIN_BUCKET_CONSTRAINT_NAME = 'usage_admin_bucket_idx' as const;
-const CONSTRAINT_MISSING_SQLSTATE_CODES = new Set(['42P10', '42704']);
+const CONSTRAINT_MISSING_SQLSTATE_CODES = new Set(['42P10', '42704', '42703']);
 
 type UsageEventInsert = typeof usageEvents.$inferInsert;
 
 const DRIZZLE_EXTRA_CONFIG_BUILDER = Symbol.for('drizzle:ExtraConfigBuilder');
 const DRIZZLE_EXTRA_CONFIG_COLUMNS = Symbol.for('drizzle:ExtraConfigColumns');
+
+function getIndexColumnName(entry: IndexColumn | undefined): string | undefined {
+  if (!entry || typeof entry !== 'object') {
+    return undefined;
+  }
+
+  const name = (entry as { name?: unknown }).name;
+  if (typeof name === 'string' && name.length > 0) {
+    return name;
+  }
+
+  const column = (entry as { column?: { name?: unknown } }).column;
+  if (column && typeof column === 'object') {
+    const columnName = (column as { name?: unknown }).name;
+    if (typeof columnName === 'string' && columnName.length > 0) {
+      return columnName;
+    }
+  }
+
+  return undefined;
+}
 
 function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
   const extraConfigBuilder = (usageEvents as Record<symbol, unknown>)[DRIZZLE_EXTRA_CONFIG_BUILDER];
@@ -271,7 +292,29 @@ function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
     }
 
     const columns = (maybeBuilder as { config?: { columns?: IndexColumn[] } }).config?.columns;
-    return columns as IndexColumn[] | undefined;
+    if (!Array.isArray(columns)) {
+      return undefined;
+    }
+    const sanitized = columns.filter((entry): entry is IndexColumn => {
+      const name = getIndexColumnName(entry);
+      return typeof name === 'string' && name.length > 0 && name !== 'undefined';
+    });
+    if (sanitized.length !== columns.length) {
+      return undefined;
+    }
+    if (process.env.OPENAI_USAGE_DEBUG === '1') {
+      console.log(
+        '[usage-fetcher] usage_admin_bucket_idx columns',
+        sanitized.map((entry) => getIndexColumnName(entry) ?? 'undefined')
+      );
+    }
+    if (sanitized.some((entry) => {
+      const name = getIndexColumnName(entry);
+      return typeof name !== 'string' || name.includes('undefined');
+    })) {
+      return undefined;
+    }
+    return sanitized;
   } catch (error) {
     console.warn('[usage-fetcher] Failed to resolve usage_admin_bucket_idx metadata', {
       error: error instanceof Error ? error.message : error,
@@ -281,6 +324,12 @@ function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
 }
 
 const usageAdminBucketConstraint = resolveUsageAdminBucketConstraint();
+const usageAdminBucketConstraintUsable = Array.isArray(usageAdminBucketConstraint)
+  ? usageAdminBucketConstraint.length > 0 && usageAdminBucketConstraint.every((entry) => {
+      const name = getIndexColumnName(entry);
+      return typeof name === 'string' && name.length > 0 && name !== 'undefined';
+    })
+  : false;
 
 let loggedMissingUsageConstraint = false;
 
@@ -464,7 +513,7 @@ async function upsertUsageEvent(
     })
   ) as UsageEventUpdatePayload;
 
-  if (usageAdminBucketConstraint) {
+  if (usageAdminBucketConstraintUsable && usageAdminBucketConstraint) {
     try {
       const [result] = await db
         .insert(usageEvents)
@@ -863,17 +912,44 @@ async function fetchAdminUsage(
   let safety = 0;
   while (safety < 20) {
     safety += 1;
+    if (process.env.OPENAI_USAGE_DEBUG === '1') {
+      console.log('[openai-admin] request', {
+        url: current.toString(),
+        headers: {
+          authorization: `${headers.Authorization.slice(0, 12)}…`,
+          organization: headers['OpenAI-Organization'],
+          project: headers['OpenAI-Project'],
+        },
+      });
+    }
     await throttleAdminRequest();
     const response = await retryFetch(current.toString(), { headers }, 3, 500, true);
     if (response.status === 401 || response.status === 403) {
       const body = await response.text();
       throw new OpenAIUsageError(body || 'Unauthorized', 'SCOPE_MISSING');
     }
+    if (process.env.OPENAI_USAGE_DEBUG === '1') {
+      console.log('[openai-admin] status', {
+        code: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+    }
     if (!response.ok) {
       const body = await response.text();
       throw new OpenAIUsageError(body || `Provider error ${response.status}`, 'PROVIDER_ERROR');
     }
     const json: OpenAIAdminUsageResponse = await response.json();
+    if (process.env.OPENAI_USAGE_DEBUG === '1') {
+      console.dir(
+        {
+          hasMore: json.has_more,
+          next: json.next_page,
+          bucketCount: Array.isArray(json.data) ? json.data.length : 0,
+          sampleBucket: Array.isArray(json.data) ? json.data[0] : undefined,
+        },
+        { depth: 4 }
+      );
+    }
     pages.push(json);
     if (json.has_more && json.next_page) {
       try {

@@ -15,6 +15,10 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
   3. Log a summary entry in `memory_bank_review_log.md` with observed gaps and remediation tickets.
 - **Confidence Target**: 6/10 after cross-checking exports and publishing artefacts.
   - Status 2025-10-02: CSV diff captured (`audit/telemetry-audit/latest.json`) with manual tier spot-check notes; staging DB comparison blocked pending migration 0003.
+  - Status 2025-10-02 (evening): Staging diff `latest-staging.json` still reports 46 missing windows; staging backfill not yet run.
+  - Status 2025-10-07: `2025-10-07T14-23-48Z.json` shows same 46 missing windows; Neon HTTP fetch failure persisted, DB comparison skipped.
+  - Status 2025-10-07 (retry): `2025-10-07T14-24-48Z.json` blocked by Neon password auth failure; need valid staging credentials before rerun.
+  - Status 2025-10-07 (latest): Admin API buckets retrieved, but ingestion fails due to `usage_admin_bucket_idx` metadata producing `undefined` columns; need to force manual dedupe path before diff can succeed.
 
 ### 2. Ingestion Window & Scheduling
 - **Action**: Design cron/backfill workflow that requests up to 30 days of data and prevents future gaps via daily pulls.

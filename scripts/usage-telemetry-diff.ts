@@ -322,30 +322,33 @@ async function loadDatabaseAggregates(options: { from?: string; to?: string }): 
 
   const where = whereClauses.length === 1 ? whereClauses[0] : and(...whereClauses);
 
-  const rows = await db.select({
-    windowStart: usageEvents.windowStart,
-    windowEnd: usageEvents.windowEnd,
-    projectId: usageEvents.projectId,
-    apiKeyId: usageEvents.openaiApiKeyId,
-    userId: usageEvents.openaiUserId,
-    model: usageEvents.model,
-    serviceTier: usageEvents.serviceTier,
-    batch: usageEvents.batch,
-    tokensIn: usageEvents.tokensIn,
-    tokensOut: usageEvents.tokensOut,
-    inputCachedTokens: usageEvents.inputCachedTokens,
-    inputUncachedTokens: usageEvents.inputUncachedTokens,
-    inputTextTokens: usageEvents.inputTextTokens,
-    outputTextTokens: usageEvents.outputTextTokens,
-    inputCachedTextTokens: usageEvents.inputCachedTextTokens,
-    inputAudioTokens: usageEvents.inputAudioTokens,
-    inputCachedAudioTokens: usageEvents.inputCachedAudioTokens,
-    outputAudioTokens: usageEvents.outputAudioTokens,
-    inputImageTokens: usageEvents.inputImageTokens,
-    inputCachedImageTokens: usageEvents.inputCachedImageTokens,
-    outputImageTokens: usageEvents.outputImageTokens,
-    numModelRequests: usageEvents.numModelRequests,
-  }).where(where);
+  const rows = await db
+    .select({
+      windowStart: usageEvents.windowStart,
+      windowEnd: usageEvents.windowEnd,
+      projectId: usageEvents.projectId,
+      apiKeyId: usageEvents.openaiApiKeyId,
+      userId: usageEvents.openaiUserId,
+      model: usageEvents.model,
+      serviceTier: usageEvents.serviceTier,
+      batch: usageEvents.batch,
+      tokensIn: usageEvents.tokensIn,
+      tokensOut: usageEvents.tokensOut,
+      inputCachedTokens: usageEvents.inputCachedTokens,
+      inputUncachedTokens: usageEvents.inputUncachedTokens,
+      inputTextTokens: usageEvents.inputTextTokens,
+      outputTextTokens: usageEvents.outputTextTokens,
+      inputCachedTextTokens: usageEvents.inputCachedTextTokens,
+      inputAudioTokens: usageEvents.inputAudioTokens,
+      inputCachedAudioTokens: usageEvents.inputCachedAudioTokens,
+      outputAudioTokens: usageEvents.outputAudioTokens,
+      inputImageTokens: usageEvents.inputImageTokens,
+      inputCachedImageTokens: usageEvents.inputCachedImageTokens,
+      outputImageTokens: usageEvents.outputImageTokens,
+      numModelRequests: usageEvents.numModelRequests,
+    })
+    .from(usageEvents)
+    .where(where);
 
   const map: AggregatedMap = new Map();
 
@@ -506,7 +509,15 @@ async function main() {
       try {
         dbAggregates = await loadDatabaseAggregates({ from: options.from, to: options.to });
       } catch (err) {
-        console.warn('[usage-telemetry-diff] Skipping DB comparison:', (err as Error).message);
+        const error = err as Error & { cause?: unknown };
+        console.warn('[usage-telemetry-diff] Skipping DB comparison:', error.message);
+        const causeMessage =
+          typeof error.cause === 'object' && error.cause && 'message' in (error.cause as Record<string, unknown>)
+            ? String((error.cause as Record<string, unknown>).message)
+            : undefined;
+        if (causeMessage && causeMessage !== error.message) {
+          console.warn('[usage-telemetry-diff] Cause:', causeMessage);
+        }
         options.skipDb = true;
       }
     }
