@@ -6,7 +6,7 @@ const config: Config = {
   tagline: 'Centralized knowledge for the CogniTrack platform',
   favicon: 'img/logo.svg',
 
-  url: 'https://cogni-track-docs.vercel.app',
+  url: process.env.DOCS_URL || 'https://cogni-track-docs.vercel.app',
   baseUrl: '/',
 
   organizationName: 'cogni-track',
