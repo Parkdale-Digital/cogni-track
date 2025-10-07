@@ -55,6 +55,12 @@ export async function GET(request: NextRequest) {
       storedEvents: 0,
       updatedEvents: 0,
       windowsProcessed: 0,
+      constraintInserts: 0,
+      constraintUpdates: 0,
+      manualFallbackInserts: 0,
+      manualFallbackUpdates: 0,
+      manualFallbackWindows: 0,
+      manualFallbackKeys: 0,
       issuesByCode: new Map<string, number>(),
     };
 
@@ -69,6 +75,12 @@ export async function GET(request: NextRequest) {
         telemetrySummary.storedEvents += telemetry.storedEvents;
         telemetrySummary.updatedEvents += telemetry.updatedEvents;
         telemetrySummary.windowsProcessed += telemetry.windowsProcessed;
+        telemetrySummary.constraintInserts += telemetry.constraintInserts;
+        telemetrySummary.constraintUpdates += telemetry.constraintUpdates;
+        telemetrySummary.manualFallbackInserts += telemetry.manualFallbackInserts;
+        telemetrySummary.manualFallbackUpdates += telemetry.manualFallbackUpdates;
+        telemetrySummary.manualFallbackWindows += telemetry.manualFallbackWindows;
+        telemetrySummary.manualFallbackKeys += telemetry.manualFallbackKeys;
         for (const issue of telemetry.issues) {
           const code = issue.code ?? 'UNKNOWN';
           const current = telemetrySummary.issuesByCode.get(code) ?? 0;
@@ -103,6 +115,12 @@ export async function GET(request: NextRequest) {
         storedEvents: telemetrySummary.storedEvents,
         updatedEvents: telemetrySummary.updatedEvents,
         windowsProcessed: telemetrySummary.windowsProcessed,
+        constraintInserts: telemetrySummary.constraintInserts,
+        constraintUpdates: telemetrySummary.constraintUpdates,
+        manualFallbackInserts: telemetrySummary.manualFallbackInserts,
+        manualFallbackUpdates: telemetrySummary.manualFallbackUpdates,
+        manualFallbackWindows: telemetrySummary.manualFallbackWindows,
+        manualFallbackKeys: telemetrySummary.manualFallbackKeys,
         issuesByCode,
       },
     };

@@ -102,7 +102,8 @@ async function main() {
 
     const result = await __usageFetcherTestHooks.upsertUsageEventForTest(db as unknown, payload);
 
-    assert.equal(result, 'inserted');
+    assert.equal(result.status, 'inserted');
+    assert.equal(result.mode, 'manual-fallback');
     assert.equal(db.insertAttempts, 2, 'should attempt insert twice (conflict + fallback)');
     assert.equal(db.manualInsertCount, 1, 'manual insert should succeed once');
     assert.equal(db.selectCalls, 1, 'manual dedupe should query existing rows');
@@ -125,7 +126,8 @@ async function main() {
 
     const result = await __usageFetcherTestHooks.upsertUsageEventForTest(db as unknown, payload);
 
-    assert.equal(result, 'updated');
+    assert.equal(result.status, 'updated');
+    assert.equal(result.mode, 'manual-fallback');
     assert.equal(db.insertAttempts, 2, 'should reattempt insert after conflict');
     assert.equal(db.manualInsertCount, 0, 'manual insert skipped when row exists');
     assert.equal(db.selectCalls, 1, 'manual dedupe should still query for existing row');

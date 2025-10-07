@@ -32,11 +32,12 @@ tsx scripts/usage-telemetry-diff.ts \
 - No third service tier appears in the export; flagged as gap for future audits to capture additional tiers when available.
 
 ## Artefacts
-- 2025-10-07: `latest-staging.json` (staging diff; password auth failure)
+- 2025-10-07: `2025-10-07T22-44-28Z-staging.json` (staging diff via esbuild bundle; DB totals zero because 46 windows remain missing post-guard change).
+- 2025-10-07: `2025-10-07T22-44-11Z-dryrun.json` (limited dry-run using bundled script; same missing window count while validating Neon access).
+- 2025-10-07: `latest-staging.json` (copy of `2025-10-07T22-44-28Z-staging.json`; DB totals zero while 46 windows remain missing).
 - 2025-10-07: `latest.json` (staging diff; password auth failure)
 - 2025-10-07: `2025-10-07T14-23-48Z.json` (staging diff; Neon HTTP failed with fetch error, so DB comparison still skipped).
-- 2025-10-02: `latest-staging.json` (staging diff run; DB query failed earlier due to Neon HTTP channel binding requirement, rerun succeeded but reported 46 missing windows pending backfill).
+- 2025-10-07: `synthetic-manual-fallback.json` (synthetic telemetry sample exercising manual dedupe fallback counters for instrumentation validation).
 - 2025-10-02: `latest.json` (CSV-only diff against completions_usage_2025-09-01_2025-10-01.csv; staging DB comparison skipped).
 
 <!-- Add links to stored evidence files here. -->
-

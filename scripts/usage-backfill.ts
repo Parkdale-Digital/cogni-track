@@ -35,6 +35,12 @@ type BackfillTotals = {
   updatedEvents: number;
   windowsProcessed: number;
   issues: number;
+  constraintInserts: number;
+  constraintUpdates: number;
+  manualFallbackInserts: number;
+  manualFallbackUpdates: number;
+  manualFallbackWindows: number;
+  manualFallbackKeys: number;
 };
 
 function startOfDayUtc(date: Date): Date {
@@ -228,6 +234,12 @@ async function run() {
     updatedEvents: 0,
     windowsProcessed: 0,
     issues: 0,
+    constraintInserts: 0,
+    constraintUpdates: 0,
+    manualFallbackInserts: 0,
+    manualFallbackUpdates: 0,
+    manualFallbackWindows: 0,
+    manualFallbackKeys: 0,
   };
   let hadErrors = false;
 
@@ -282,6 +294,12 @@ async function run() {
         totals.updatedEvents += telemetry.updatedEvents;
         totals.windowsProcessed += telemetry.windowsProcessed;
         totals.issues += telemetry.issues.length;
+        totals.constraintInserts += telemetry.constraintInserts;
+        totals.constraintUpdates += telemetry.constraintUpdates;
+        totals.manualFallbackInserts += telemetry.manualFallbackInserts;
+        totals.manualFallbackUpdates += telemetry.manualFallbackUpdates;
+        totals.manualFallbackWindows += telemetry.manualFallbackWindows;
+        totals.manualFallbackKeys += telemetry.manualFallbackKeys;
 
         console.log('[usage-backfill] Chunk complete', {
           userId,
@@ -292,6 +310,12 @@ async function run() {
           windowsProcessed: telemetry.windowsProcessed,
           storedEvents: telemetry.storedEvents,
           updatedEvents: telemetry.updatedEvents,
+          constraintInserts: telemetry.constraintInserts,
+          constraintUpdates: telemetry.constraintUpdates,
+          manualFallbackInserts: telemetry.manualFallbackInserts,
+          manualFallbackUpdates: telemetry.manualFallbackUpdates,
+          manualFallbackWindows: telemetry.manualFallbackWindows,
+          manualFallbackKeys: telemetry.manualFallbackKeys,
           simulatedKeys: telemetry.simulatedKeys,
           failedKeys: telemetry.failedKeys,
           issues: telemetry.issues,

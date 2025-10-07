@@ -151,6 +151,12 @@ export interface IngestionTelemetry {
   skippedEvents: number;
   updatedEvents: number;
   windowsProcessed: number;
+  constraintInserts: number;
+  constraintUpdates: number;
+  manualFallbackInserts: number;
+  manualFallbackUpdates: number;
+  manualFallbackWindows: number;
+  manualFallbackKeys: number;
   issues: IngestionIssue[];
 }
 
@@ -255,12 +261,13 @@ function getIndexColumnName(entry: IndexColumn | undefined): string | undefined 
 }
 
 function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
-  const extraConfigBuilder = (usageEvents as Record<symbol, unknown>)[DRIZZLE_EXTRA_CONFIG_BUILDER];
+  const usageEventSymbols = usageEvents as unknown as Record<symbol, unknown>;
+  const extraConfigBuilder = usageEventSymbols[DRIZZLE_EXTRA_CONFIG_BUILDER];
   if (typeof extraConfigBuilder !== 'function') {
     return undefined;
   }
 
-  const extraConfigColumns = (usageEvents as Record<symbol, unknown>)[DRIZZLE_EXTRA_CONFIG_COLUMNS];
+  const extraConfigColumns = usageEventSymbols[DRIZZLE_EXTRA_CONFIG_COLUMNS];
   try {
     const extraConfig = (extraConfigBuilder as (columns: unknown) => unknown)(extraConfigColumns);
     const maybeBuilder =
@@ -365,6 +372,13 @@ function logMissingUsageConstraintOnce(reason: 'metadata-missing' | 'constraint-
   );
   loggedMissingUsageConstraint = true;
 }
+
+type UpsertPersistenceMode = 'constraint' | 'manual-fallback';
+
+type UsageUpsertResult = {
+  status: 'inserted' | 'updated';
+  mode: UpsertPersistenceMode;
+};
 
 const usageEventColumnsForUpdate = [
   'tokensIn',
@@ -474,7 +488,7 @@ async function upsertUsageEventWithManualDedupe(
   db: ReturnType<typeof getDb>,
   payload: UsageEventInsert,
   updatePayload: UsageEventUpdatePayload
-): Promise<'inserted' | 'updated'> {
+): Promise<UsageUpsertResult> {
   const manualInsertBuilder = db.insert(usageEvents).values(payload);
 
   const [existing] = await db
@@ -484,14 +498,23 @@ async function upsertUsageEventWithManualDedupe(
     .limit(1);
 
   if (!existing) {
-    const [result] = await manualInsertBuilder.returning({ inserted: sql<boolean>`(xmax = 0)` });
+    const manualInsertQuery = (manualInsertBuilder as unknown as {
+      returning: (...args: any[]) => Promise<Array<{ inserted: boolean }>>;
+    }).returning({ inserted: sql<boolean>`(xmax = 0)` });
+    const [result] = await (manualInsertQuery as unknown as Promise<Array<{ inserted: boolean }>>);
 
-    return result?.inserted ? 'inserted' : 'updated';
+    return {
+      status: result?.inserted ? 'inserted' : 'updated',
+      mode: 'manual-fallback',
+    };
   }
 
   const hasUpdates = usageEventColumnsForUpdate.some((key) => key in updatePayload);
   if (!hasUpdates) {
-    return 'updated';
+    return {
+      status: 'updated',
+      mode: 'manual-fallback',
+    };
   }
 
   await db
@@ -499,13 +522,16 @@ async function upsertUsageEventWithManualDedupe(
     .set(updatePayload)
     .where(eq(usageEvents.id, existing.id));
 
-  return 'updated';
+  return {
+    status: 'updated',
+    mode: 'manual-fallback',
+  };
 }
 
 async function upsertUsageEvent(
   db: ReturnType<typeof getDb>,
   payload: UsageEventInsert
-): Promise<'inserted' | 'updated'> {
+): Promise<UsageUpsertResult> {
   const updatePayload = Object.fromEntries(
     usageEventColumnsForUpdate.flatMap((key) => {
       const value = payload[key];
@@ -515,16 +541,21 @@ async function upsertUsageEvent(
 
   if (usageAdminBucketConstraintUsable && usageAdminBucketConstraint) {
     try {
-      const [result] = await db
+      const upsertQuery = (db
         .insert(usageEvents)
         .values(payload)
         .onConflictDoUpdate({
           target: usageAdminBucketConstraint,
           set: updatePayload,
-        })
-        .returning({ inserted: sql<boolean>`(xmax = 0)` });
+        }) as unknown as {
+        returning: (...args: any[]) => Promise<Array<{ inserted: boolean }>>;
+      }).returning({ inserted: sql<boolean>`(xmax = 0)` });
+      const [result] = await (upsertQuery as unknown as Promise<Array<{ inserted: boolean }>>);
 
-      return result?.inserted ? 'inserted' : 'updated';
+      return {
+        status: result?.inserted ? 'inserted' : 'updated',
+        mode: 'constraint',
+      };
     } catch (error) {
       if (!isUsageConstraintMissingError(error)) {
         throw error;
@@ -1121,6 +1152,12 @@ export async function fetchAndStoreUsageForUser(
       skippedEvents: 0,
       updatedEvents: 0,
       windowsProcessed: 0,
+      constraintInserts: 0,
+      constraintUpdates: 0,
+      manualFallbackInserts: 0,
+      manualFallbackUpdates: 0,
+      manualFallbackWindows: 0,
+      manualFallbackKeys: 0,
       issues: [],
     };
 
@@ -1155,6 +1192,14 @@ export async function fetchAndStoreUsageForUser(
 
     for (const keyRecord of userKeys) {
       let usedSimulation = false;
+      const persistenceCounters = {
+        constraintInserted: 0,
+        constraintUpdated: 0,
+        manualInserted: 0,
+        manualUpdated: 0,
+      };
+      const manualFallbackWindows = new Set<string>();
+      let usedManualFallback = false;
       try {
         const decryptedKey = decrypt({
           encryptedText: keyRecord.encryptedKey,
@@ -1257,12 +1302,32 @@ export async function fetchAndStoreUsageForUser(
             const insertPayload = buildUsageEventInsertPayload(keyRecord.id, usage);
             const upsertResult = await upsertUsageEvent(db, insertPayload);
 
-            if (upsertResult === 'inserted') {
+            if (upsertResult.status === 'inserted') {
               newEventsCount += 1;
               telemetry.storedEvents += 1;
             } else {
               updatedEventsCount += 1;
               telemetry.updatedEvents += 1;
+            }
+
+            if (upsertResult.mode === 'manual-fallback') {
+              usedManualFallback = true;
+              const windowKey =
+                insertPayload.windowStart instanceof Date
+                  ? `${keyRecord.id}:${insertPayload.windowStart.toISOString()}`
+                  : `${keyRecord.id}:unknown`;
+              manualFallbackWindows.add(windowKey);
+              if (upsertResult.status === 'inserted') {
+                persistenceCounters.manualInserted += 1;
+              } else {
+                persistenceCounters.manualUpdated += 1;
+              }
+            } else {
+              if (upsertResult.status === 'inserted') {
+                persistenceCounters.constraintInserted += 1;
+              } else {
+                persistenceCounters.constraintUpdated += 1;
+              }
             }
 
             if (usage.pricingFallback) {
@@ -1285,6 +1350,18 @@ export async function fetchAndStoreUsageForUser(
             updatedBuckets: updatedEventsCount,
             windows: processedWindows,
             fetched: totalFetched,
+            persistence: {
+              constraint: {
+                inserted: persistenceCounters.constraintInserted,
+                updated: persistenceCounters.constraintUpdated,
+              },
+              manualFallback: {
+                inserted: persistenceCounters.manualInserted,
+                updated: persistenceCounters.manualUpdated,
+              },
+            },
+            manualFallbackWindows: manualFallbackWindows.size,
+            manualFallbackUsed: usedManualFallback,
             ...(runLabel ? { runLabel } : {}),
           });
         } else {
@@ -1295,6 +1372,18 @@ export async function fetchAndStoreUsageForUser(
             updatedBuckets: updatedEventsCount,
             windows: processedWindows,
             fetched: totalFetched,
+            persistence: {
+              constraint: {
+                inserted: persistenceCounters.constraintInserted,
+                updated: persistenceCounters.constraintUpdated,
+              },
+              manualFallback: {
+                inserted: persistenceCounters.manualInserted,
+                updated: persistenceCounters.manualUpdated,
+              },
+            },
+            manualFallbackWindows: manualFallbackWindows.size,
+            manualFallbackUsed: usedManualFallback,
             ...(runLabel ? { runLabel } : {}),
           });
         }
@@ -1337,6 +1426,14 @@ export async function fetchAndStoreUsageForUser(
         if (usedSimulation) {
           telemetry.simulatedKeys += 1;
         }
+        if (usedManualFallback) {
+          telemetry.manualFallbackKeys += 1;
+        }
+        telemetry.manualFallbackWindows += manualFallbackWindows.size;
+        telemetry.manualFallbackInserts += persistenceCounters.manualInserted;
+        telemetry.manualFallbackUpdates += persistenceCounters.manualUpdated;
+        telemetry.constraintInserts += persistenceCounters.constraintInserted;
+        telemetry.constraintUpdates += persistenceCounters.constraintUpdated;
       }
     }
 
