@@ -5,9 +5,12 @@ import { fetchAndStoreUsageForUser } from '../../../../lib/usage-fetcher';
 export async function GET(request: NextRequest) {
   try {
     // Verify this is a legitimate cron request
-    const expectedSecret = process.env.CRON_SECRET;
-    if (!expectedSecret) {
-      console.error('CRON_SECRET is not configured. Rejecting cron request.');
+    const rawSecret = process.env.CRON_SECRET;
+    const expectedSecret = rawSecret?.trim();
+    if (!expectedSecret || expectedSecret === 'undefined' || expectedSecret === 'null') {
+      console.error('CRON_SECRET is not configured or invalid. Rejecting cron request.', {
+        hasEnvValue: Boolean(rawSecret),
+      });
       return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
     }
 
@@ -16,7 +19,7 @@ export async function GET(request: NextRequest) {
       ? authHeader.slice('Bearer '.length).trim()
       : undefined;
 
-    if (!provided) {
+    if (!provided || provided === 'undefined' || provided === 'null') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -273,12 +273,26 @@ function aggregateCsvRows(rows: CsvRow[], source: string): AggregatedMap {
   const map: AggregatedMap = new Map();
 
   for (const row of rows) {
+    const normalizedMetrics = metricColumns.map((metric) => ({
+      metric,
+      value: normalizeNumber(row[metric]),
+    }));
+    const hasNonZeroMetrics = normalizedMetrics.some(({ value }) => value !== 0);
+    const projectId = (row['project_id'] ?? '').trim();
+    const apiKeyId = (row['api_key_id'] ?? '').trim();
+    const userId = (row['user_id'] ?? '').trim();
+    const hasMetadata = Boolean(projectId || apiKeyId || userId);
+
+    if (!hasMetadata && !hasNonZeroMetrics) {
+      continue;
+    }
+
     const keyParts: NormalizedKey = {
       windowStartIso: normalizeIso(row['start_time_iso']),
       windowEndIso: normalizeIso(row['end_time_iso']),
-      projectId: row['project_id'] ?? '',
-      apiKeyId: row['api_key_id'] ?? '',
-      userId: row['user_id'] ?? '',
+      projectId,
+      apiKeyId,
+      userId,
       model: row['model'] ?? '',
       serviceTier: row['service_tier'] ?? '',
       batch: normalizeBoolean(row['batch']),
@@ -286,8 +300,8 @@ function aggregateCsvRows(rows: CsvRow[], source: string): AggregatedMap {
     const key = buildKey(keyParts);
     const existing = map.get(key);
     const metrics = existing?.metrics ?? createEmptyMetrics();
-    for (const metric of metricColumns) {
-      metrics[metric] += normalizeNumber(row[metric]);
+    for (const { metric, value } of normalizedMetrics) {
+      metrics[metric] += value;
     }
     map.set(key, {
       ...keyParts,

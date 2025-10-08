@@ -184,6 +184,30 @@ const ADMIN_THROTTLE_TIMEOUT_MS = Math.max(
 const ENABLE_DAILY_USAGE_WINDOWS =
   (process.env.ENABLE_DAILY_USAGE_WINDOWS ?? 'false').toLowerCase() === 'true';
 
+const REQUIRED_USAGE_WINDOW_COLUMNS = [
+  'window_start',
+  'window_end',
+  'project_id',
+  'openai_api_key_id',
+  'openai_user_id',
+  'service_tier',
+  'batch',
+  'num_model_requests',
+  'input_cached_tokens',
+  'input_uncached_tokens',
+  'input_text_tokens',
+  'output_text_tokens',
+  'input_cached_text_tokens',
+  'input_audio_tokens',
+  'input_cached_audio_tokens',
+  'output_audio_tokens',
+  'input_image_tokens',
+  'input_cached_image_tokens',
+  'output_image_tokens',
+];
+
+let usageWindowSchemaCheck: Promise<void> | null = null;
+
 type TokenPricing = {
   input: number;
   output: number;
@@ -642,6 +666,13 @@ class UsageConfigurationError extends Error {
   }
 }
 
+class UsageSchemaError extends Error {
+  constructor(message: string, public readonly missingColumns: string[] = []) {
+    super(message);
+    this.name = 'UsageSchemaError';
+  }
+}
+
 function validateUsageConfiguration(config: UsageModeConfiguration): void {
   if (config.mode === 'admin') {
     if (!config.organizationId || !config.projectId) {
@@ -649,6 +680,77 @@ function validateUsageConfiguration(config: UsageModeConfiguration): void {
         'Admin usage mode requires both organization and project identifiers.'
       );
     }
+  }
+}
+
+async function ensureUsageWindowSchema(db: ReturnType<typeof getDb>): Promise<void> {
+  if (!ENABLE_DAILY_USAGE_WINDOWS) {
+    return;
+  }
+
+  if (!usageWindowSchemaCheck) {
+    usageWindowSchemaCheck = (async () => {
+      const columnResult = await db.execute<{ column_name: string }>(sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'usage_events'
+      `);
+
+      const presentColumns = new Set(
+        (columnResult.rows ?? []).map((row) => row.column_name)
+      );
+
+      const missingColumns = REQUIRED_USAGE_WINDOW_COLUMNS.filter(
+        (column) => !presentColumns.has(column)
+      );
+
+      if (missingColumns.length > 0) {
+        throw new UsageSchemaError(
+          `usage_events missing columns required for daily usage windows: ${missingColumns.join(', ')}`,
+          missingColumns
+        );
+      }
+    })();
+  }
+
+  try {
+    await usageWindowSchemaCheck;
+  } catch (error) {
+    usageWindowSchemaCheck = null;
+    if (error instanceof UsageSchemaError) {
+      throw error;
+    }
+
+    const message =
+      error instanceof Error ? error.message : String(error);
+
+    throw new UsageSchemaError(
+      `Failed to verify usage_events schema for daily usage windows: ${message}`
+    );
+  }
+}
+
+type NextPageValidationResult =
+  | { ok: true; url: URL }
+  | { ok: false; reason: 'parse-error' | 'unexpected-host' | 'unexpected-path'; resolved?: string };
+
+function sanitizeAdminNextPageUrl(current: URL, nextPage: string): NextPageValidationResult {
+  try {
+    const candidate = new URL(nextPage, current);
+    const allowedHost = 'api.openai.com';
+    if (candidate.protocol !== 'https:' || candidate.hostname !== allowedHost) {
+      return { ok: false, reason: 'unexpected-host', resolved: candidate.toString() };
+    }
+    if (!candidate.pathname.startsWith('/v1/organization/')) {
+      return { ok: false, reason: 'unexpected-path', resolved: candidate.pathname };
+    }
+    return {
+      ok: true,
+      url: new URL(`${candidate.pathname}${candidate.search}`, `https://${allowedHost}`),
+    };
+  } catch (error) {
+    return { ok: false, reason: 'parse-error', resolved: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -983,23 +1085,17 @@ async function fetchAdminUsage(
     }
     pages.push(json);
     if (json.has_more && json.next_page) {
-      try {
-        const nextUrl = new URL(json.next_page, current);
-        if (nextUrl.protocol !== 'https:' || nextUrl.hostname !== 'api.openai.com') {
-          console.error('[usage-fetcher] Aborting pagination due to unexpected host in next_page', {
-            nextPage: json.next_page,
-            resolved: nextUrl.toString(),
-          });
-          break;
-        }
-        current = nextUrl;
-      } catch (error) {
-        console.error('[usage-fetcher] Failed to parse next_page URL', {
+      const validation = sanitizeAdminNextPageUrl(current, json.next_page);
+      if (!validation.ok) {
+        const { reason, resolved } = validation;
+        console.error('[usage-fetcher] Aborting pagination due to invalid next_page', {
+          reason,
           nextPage: json.next_page,
-          error,
+          resolved,
         });
         break;
       }
+      current = validation.url;
     } else {
       break;
     }
@@ -1179,6 +1275,26 @@ export async function fetchAndStoreUsageForUser(
         ...(runLabel ? { runLabel } : {}),
       });
       return telemetry;
+    }
+
+    try {
+      await ensureUsageWindowSchema(db);
+    } catch (error) {
+      if (error instanceof UsageSchemaError) {
+        telemetry.failedKeys = userKeys.length;
+        telemetry.issues.push({
+          keyId: 0,
+          message: error.message,
+          code: 'SCHEMA_MISSING',
+        });
+        console.error('[usage-fetcher] Daily usage schema verification failed', {
+          userId,
+          missingColumns: error.missingColumns,
+          ...(runLabel ? { runLabel } : {}),
+        });
+        return telemetry;
+      }
+      throw error;
     }
 
     if (runLabel || overrideStart || overrideEnd) {
@@ -1462,4 +1578,5 @@ export const __usageFetcherTestHooks = {
   buildUsageEventInsertPayloadForTest: buildUsageEventInsertPayload,
   upsertUsageEventForTest: async (db: unknown, payload: UsageEventInsert) =>
     upsertUsageEvent(db as ReturnType<typeof getDb>, payload),
+  sanitizeAdminNextPageUrlForTest: sanitizeAdminNextPageUrl,
 };

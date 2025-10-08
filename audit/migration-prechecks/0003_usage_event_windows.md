@@ -33,7 +33,14 @@ Staging currently lacks `drizzle/0003_usage_event_windows.sql`, blocking daily u
    pnpm exec psql "$DATABASE_URL" -c "SELECT indexname FROM pg_indexes WHERE tablename = 'usage_events' AND indexname = 'usage_admin_bucket_idx';" >> audit/migration-prechecks/0003_usage_events_schema.txt
    ```
 
-5. **Telemetry diff rerun**
+5. **Schema guard sanity check**
+   ```bash
+   ENABLE_DAILY_USAGE_WINDOWS=true pnpm exec tsx scripts/usage-backfill.ts --days=1 --chunk-days=1 --label verify-schema --dry-run
+   ```
+   - Expect no `SCHEMA_MISSING` issues in the structured logs. If the command exits early with
+     `Daily usage schema verification failed`, re-run step 2 after confirming migration status.
+
+6. **Telemetry diff rerun**
    ```bash
    node tmp/usage-telemetry-diff.mjs \
      --csv openAI-data/completions_usage_2025-09-01_2025-10-01.csv \
@@ -57,4 +64,3 @@ Staging currently lacks `drizzle/0003_usage_event_windows.sql`, blocking daily u
 - [ ] Diff of pre/post schema snapshots
 - [ ] `audit/telemetry-audit/latest-staging.json` (post-migration diff)
 - [ ] Memory bank entry noting staging alignment
-
