@@ -264,6 +264,7 @@ function buildKey(parts: NormalizedKey): string {
     parts.apiKeyId || '',
     parts.userId || '',
     parts.model || '',
+    parts.serviceTier || '',
     parts.batch ? '1' : '0',
   ].join('|');
 }
@@ -285,6 +286,8 @@ function aggregateCsvRows(rows: CsvRow[], source: string): AggregatedMap {
       continue;
     }
 
+    const serviceTier = (row['service_tier'] ?? '').trim();
+
     const keyParts: NormalizedKey = {
       windowStartIso: normalizeIso(row['start_time_iso']),
       windowEndIso: normalizeIso(row['end_time_iso']),
@@ -292,6 +295,7 @@ function aggregateCsvRows(rows: CsvRow[], source: string): AggregatedMap {
       apiKeyId,
       userId,
       model: row['model'] ?? '',
+      serviceTier,
       batch: normalizeBoolean(row['batch']),
     };
     const key = buildKey(keyParts);
@@ -341,6 +345,7 @@ async function loadDatabaseAggregates(options: { from?: string; to?: string }): 
       apiKeyId: usageEvents.openaiApiKeyId,
       userId: usageEvents.openaiUserId,
       model: usageEvents.model,
+      serviceTier: usageEvents.serviceTier,
       batch: usageEvents.batch,
       tokensIn: usageEvents.tokensIn,
       tokensOut: usageEvents.tokensOut,
@@ -370,6 +375,7 @@ async function loadDatabaseAggregates(options: { from?: string; to?: string }): 
       apiKeyId: row.apiKeyId ?? '',
       userId: row.userId ?? '',
       model: row.model ?? '',
+      serviceTier: row.serviceTier?.trim() ?? '',
       batch: normalizeBoolean(row.batch),
     };
 
@@ -479,7 +485,8 @@ function compareAggregates(csvAggregates: AggregatedMap, dbAggregates?: Aggregat
           apiKeyId: record.apiKeyId,
           userId: record.userId,
           model: record.model,
-                    batch: record.batch,
+          serviceTier: record.serviceTier,
+          batch: record.batch,
         },
         deltas,
         csv: record,
@@ -564,4 +571,4 @@ async function main() {
   }
 }
 
-await main();
+void main();
