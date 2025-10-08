@@ -264,6 +264,9 @@ const CONSTRAINT_MISSING_SQLSTATE_CODES = new Set(['42P10', '42704', '42703']);
 type UsageEventInsert = typeof usageEvents.$inferInsert;
 
 const DRIZZLE_EXTRA_CONFIG_BUILDER = Symbol.for('drizzle:ExtraConfigBuilder');
+// WARNING: This references a Drizzle internal symbol. 
+// This code is tightly coupled to Drizzle version X.Y.Z. 
+// If you upgrade Drizzle, verify that 'drizzle:ExtraConfigColumns' is still valid.
 const DRIZZLE_EXTRA_CONFIG_COLUMNS = Symbol.for('drizzle:ExtraConfigColumns');
 
 function getIndexColumnName(entry: IndexColumn | undefined): string | undefined {
