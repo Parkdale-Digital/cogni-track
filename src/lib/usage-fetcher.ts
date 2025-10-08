@@ -287,6 +287,32 @@ function getIndexColumnName(entry: IndexColumn | undefined): string | undefined 
   return undefined;
 }
 
+function isSqlIndexExpression(entry: IndexColumn | undefined): boolean {
+  if (!entry || typeof entry !== 'object') {
+    return false;
+  }
+  const candidate = entry as { queryChunks?: unknown };
+  if (!Array.isArray(candidate.queryChunks)) {
+    return false;
+  }
+  return candidate.queryChunks.every((chunk) =>
+    typeof chunk !== 'string' || !chunk.includes('undefined')
+  );
+}
+
+function isUsableIndexColumn(entry: IndexColumn | undefined): entry is IndexColumn {
+  if (!entry || typeof entry !== 'object') {
+    return false;
+  }
+
+  const name = getIndexColumnName(entry);
+  if (typeof name === 'string') {
+    return name.length > 0 && name !== 'undefined';
+  }
+
+  return isSqlIndexExpression(entry);
+}
+
 function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
   const usageEventSymbols = usageEvents as unknown as Record<symbol, unknown>;
   const extraConfigBuilder = usageEventSymbols[DRIZZLE_EXTRA_CONFIG_BUILDER];
@@ -329,26 +355,19 @@ function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
     if (!Array.isArray(columns)) {
       return undefined;
     }
-    const sanitized = columns.filter((entry): entry is IndexColumn => {
-      const name = getIndexColumnName(entry);
-      return typeof name === 'string' && name.length > 0 && name !== 'undefined';
-    });
-    if (sanitized.length !== columns.length) {
+    if (!Array.isArray(columns) || columns.length === 0) {
+      return undefined;
+    }
+    if (!columns.every((entry) => isUsableIndexColumn(entry))) {
       return undefined;
     }
     if (process.env.OPENAI_USAGE_DEBUG === '1') {
       console.log(
         '[usage-fetcher] usage_admin_bucket_idx columns',
-        sanitized.map((entry) => getIndexColumnName(entry) ?? 'undefined')
+        columns.map((entry) => getIndexColumnName(entry) ?? '[expression]')
       );
     }
-    if (sanitized.some((entry) => {
-      const name = getIndexColumnName(entry);
-      return typeof name !== 'string' || name.includes('undefined');
-    })) {
-      return undefined;
-    }
-    return sanitized;
+    return columns as IndexColumn[];
   } catch (error) {
     console.warn('[usage-fetcher] Failed to resolve usage_admin_bucket_idx metadata', {
       error: error instanceof Error ? error.message : error,
@@ -359,10 +378,7 @@ function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
 
 const usageAdminBucketConstraint = resolveUsageAdminBucketConstraint();
 const usageAdminBucketConstraintUsable = Array.isArray(usageAdminBucketConstraint)
-  ? usageAdminBucketConstraint.length > 0 && usageAdminBucketConstraint.every((entry) => {
-      const name = getIndexColumnName(entry);
-      return typeof name === 'string' && name.length > 0 && name !== 'undefined';
-    })
+  ? usageAdminBucketConstraint.length > 0 && usageAdminBucketConstraint.every((entry) => isUsableIndexColumn(entry))
   : false;
 
 let loggedMissingUsageConstraint = false;
@@ -739,8 +755,15 @@ type NextPageValidationResult =
   | { ok: false; reason: 'parse-error' | 'unexpected-host' | 'unexpected-path'; resolved?: string };
 
 function sanitizeAdminNextPageUrl(current: URL, nextPage: string): NextPageValidationResult {
+  const trimmed = nextPage?.trim?.() ?? '';
+  if (!trimmed) {
+    return { ok: false, reason: 'parse-error', resolved: 'empty' };
+  }
+  if (/\s/.test(trimmed)) {
+    return { ok: false, reason: 'parse-error', resolved: 'whitespace' };
+  }
   try {
-    const candidate = new URL(nextPage, current);
+    const candidate = new URL(trimmed, current);
     const allowedHost = 'api.openai.com';
     if (candidate.protocol !== 'https:' || candidate.hostname !== allowedHost) {
       return { ok: false, reason: 'unexpected-host', resolved: candidate.toString() };
