@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "test": "tsx tests/runAllTests.ts",
-    "usage:backfill": "tsx scripts/usage-backfill.ts"
+    "usage:backfill": "tsx scripts/usage-backfill.ts",
+    "docs": "npm run start --prefix docs-site",
+    "docs:build": "npm run build --prefix docs-site",
+    "docs:serve": "npm run serve --prefix docs-site"
   },
   "keywords": [],
   "author": "",
