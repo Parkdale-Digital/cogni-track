@@ -12574,28 +12574,37 @@ function buildKey(parts) {
     parts.apiKeyId || "",
     parts.userId || "",
     parts.model || "",
-    parts.serviceTier || "",
     parts.batch ? "1" : "0"
   ].join("|");
 }
 function aggregateCsvRows(rows, source) {
   const map = /* @__PURE__ */ new Map();
   for (const row of rows) {
+    const normalizedMetrics = metricColumns.map((metric) => ({
+      metric,
+      value: normalizeNumber(row[metric])
+    }));
+    const projectId = (row["project_id"] ?? "").trim();
+    const apiKeyId = (row["api_key_id"] ?? "").trim();
+    const userId = (row["user_id"] ?? "").trim();
+    const hasMetadata = Boolean(projectId || apiKeyId || userId);
+    if (!hasMetadata) {
+      continue;
+    }
     const keyParts = {
       windowStartIso: normalizeIso(row["start_time_iso"]),
       windowEndIso: normalizeIso(row["end_time_iso"]),
-      projectId: row["project_id"] ?? "",
-      apiKeyId: row["api_key_id"] ?? "",
-      userId: row["user_id"] ?? "",
+      projectId,
+      apiKeyId,
+      userId,
       model: row["model"] ?? "",
-      serviceTier: row["service_tier"] ?? "",
       batch: normalizeBoolean(row["batch"])
     };
     const key = buildKey(keyParts);
     const existing = map.get(key);
     const metrics = existing?.metrics ?? createEmptyMetrics();
-    for (const metric of metricColumns) {
-      metrics[metric] += normalizeNumber(row[metric]);
+    for (const { metric, value } of normalizedMetrics) {
+      metrics[metric] += value;
     }
     map.set(key, {
       ...keyParts,
@@ -12630,7 +12639,6 @@ async function loadDatabaseAggregates(options) {
     apiKeyId: usageEvents.openaiApiKeyId,
     userId: usageEvents.openaiUserId,
     model: usageEvents.model,
-    serviceTier: usageEvents.serviceTier,
     batch: usageEvents.batch,
     tokensIn: usageEvents.tokensIn,
     tokensOut: usageEvents.tokensOut,
@@ -12656,26 +12664,34 @@ async function loadDatabaseAggregates(options) {
       apiKeyId: row.apiKeyId ?? "",
       userId: row.userId ?? "",
       model: row.model ?? "",
-      serviceTier: row.serviceTier ?? "",
       batch: normalizeBoolean(row.batch)
     };
+    const hasMetadata = Boolean(keyParts.projectId || keyParts.apiKeyId || keyParts.userId);
+    const normalizedMetrics = {
+      input_tokens: normalizeNumber(row.tokensIn),
+      output_tokens: normalizeNumber(row.tokensOut),
+      input_cached_tokens: normalizeNumber(row.inputCachedTokens),
+      input_uncached_tokens: normalizeNumber(row.inputUncachedTokens),
+      input_text_tokens: normalizeNumber(row.inputTextTokens),
+      output_text_tokens: normalizeNumber(row.outputTextTokens),
+      input_cached_text_tokens: normalizeNumber(row.inputCachedTextTokens),
+      input_audio_tokens: normalizeNumber(row.inputAudioTokens),
+      input_cached_audio_tokens: normalizeNumber(row.inputCachedAudioTokens),
+      output_audio_tokens: normalizeNumber(row.outputAudioTokens),
+      input_image_tokens: normalizeNumber(row.inputImageTokens),
+      input_cached_image_tokens: normalizeNumber(row.inputCachedImageTokens),
+      output_image_tokens: normalizeNumber(row.outputImageTokens),
+      num_model_requests: normalizeNumber(row.numModelRequests)
+    };
+    if (!hasMetadata) {
+      continue;
+    }
     const key = buildKey(keyParts);
     const existing = map.get(key);
     const metrics = existing?.metrics ?? createEmptyMetrics();
-    metrics["input_tokens"] += normalizeNumber(row.tokensIn);
-    metrics["output_tokens"] += normalizeNumber(row.tokensOut);
-    metrics["input_cached_tokens"] += normalizeNumber(row.inputCachedTokens);
-    metrics["input_uncached_tokens"] += normalizeNumber(row.inputUncachedTokens);
-    metrics["input_text_tokens"] += normalizeNumber(row.inputTextTokens);
-    metrics["output_text_tokens"] += normalizeNumber(row.outputTextTokens);
-    metrics["input_cached_text_tokens"] += normalizeNumber(row.inputCachedTextTokens);
-    metrics["input_audio_tokens"] += normalizeNumber(row.inputAudioTokens);
-    metrics["input_cached_audio_tokens"] += normalizeNumber(row.inputCachedAudioTokens);
-    metrics["output_audio_tokens"] += normalizeNumber(row.outputAudioTokens);
-    metrics["input_image_tokens"] += normalizeNumber(row.inputImageTokens);
-    metrics["input_cached_image_tokens"] += normalizeNumber(row.inputCachedImageTokens);
-    metrics["output_image_tokens"] += normalizeNumber(row.outputImageTokens);
-    metrics["num_model_requests"] += normalizeNumber(row.numModelRequests);
+    for (const metric of metricColumns) {
+      metrics[metric] += normalizedMetrics[metric];
+    }
     map.set(key, {
       ...keyParts,
       metrics,
@@ -12731,7 +12747,6 @@ function compareAggregates(csvAggregates, dbAggregates) {
           apiKeyId: record.apiKeyId,
           userId: record.userId,
           model: record.model,
-          serviceTier: record.serviceTier,
           batch: record.batch
         },
         deltas,

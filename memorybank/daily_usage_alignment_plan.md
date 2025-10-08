@@ -24,6 +24,7 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
   - Status 2025-10-07 (night, post-analysis): Missing windows categorized in `audit/telemetry-audit/missing-windows-summary-2025-10-07.md`; real gaps isolated to project `proj_MhIbP1DyoTSqH6k2DtXVKvvV` (keys `key_mPAw5OyZbONR4dAL`, `key_NF7ZLeXYAXECwqv7`), while 15 CSV rows lack metadata and carry zero tokens.
   - Status 2025-10-08: Filtered blank metadata rows at CSV ingestion time (`scripts/usage-telemetry-diff.ts`); awaiting staged backfill + diff rerun to confirm missing window count drops.
   - Status 2025-10-08 (evening): Staging backfill (`usage:backfill --start 2025-09-01 --end 2025-10-01 --chunk-days 3 --label staging-groupby-v2`) processed 31 windows with metadata-populated rows (project/api key/user now set) yet telemetry diff still flags 46 missing DB windows because OpenAI API omits `service_tier`, and 48 DB-only rows remain from legacy null buckets.
+  - Status 2025-10-08 (night): Admin API sample confirmed `service_tier=null`; parity diff updated to ignore service tier and skip blank-metadata rows. Post-cleanup backfill (`staging-post-servicetier`) plus bundled diff reports zero missing/mismatched windows (`audit/telemetry-audit/latest-staging.json`).
 
 ### 2. Ingestion Window & Scheduling
 - **Action**: Design cron/backfill workflow that requests up to 30 days of data and prevents future gaps via daily pulls.

@@ -292,7 +292,6 @@ function aggregateCsvRows(rows: CsvRow[], source: string): AggregatedMap {
       apiKeyId,
       userId,
       model: row['model'] ?? '',
-      serviceTier: row['service_tier'] ?? '',
       batch: normalizeBoolean(row['batch']),
     };
     const key = buildKey(keyParts);
@@ -342,7 +341,6 @@ async function loadDatabaseAggregates(options: { from?: string; to?: string }): 
       apiKeyId: usageEvents.openaiApiKeyId,
       userId: usageEvents.openaiUserId,
       model: usageEvents.model,
-      serviceTier: usageEvents.serviceTier,
       batch: usageEvents.batch,
       tokensIn: usageEvents.tokensIn,
       tokensOut: usageEvents.tokensOut,
@@ -372,7 +370,6 @@ async function loadDatabaseAggregates(options: { from?: string; to?: string }): 
       apiKeyId: row.apiKeyId ?? '',
       userId: row.userId ?? '',
       model: row.model ?? '',
-      serviceTier: row.serviceTier ?? '',
       batch: normalizeBoolean(row.batch),
     };
 
@@ -482,8 +479,7 @@ function compareAggregates(csvAggregates: AggregatedMap, dbAggregates?: Aggregat
           apiKeyId: record.apiKeyId,
           userId: record.userId,
           model: record.model,
-          serviceTier: record.serviceTier,
-          batch: record.batch,
+                    batch: record.batch,
         },
         deltas,
         csv: record,
