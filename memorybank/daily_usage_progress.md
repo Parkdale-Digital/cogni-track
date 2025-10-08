@@ -17,7 +17,19 @@
 - Confirmed parity closure in memory bank (`memorybank/progress.md`) and closed context gap `GAP-2025-10-07-DAILY-USAGE-PARITY`.
 - Documented golden fixture requirements under `audit/golden-fixtures/README.md` and added cron rehearsal logging template instructions in `audit/cron-dry-run/summary.md`.
 - Expanded `audit/golden-fixtures/README.md` with fixture capture workflow (script pointer) and env flags (`DAILY_USAGE_CONTRACT_FIXTURES_READY`, `DAILY_USAGE_CONTRACT_FIXTURES_DIR`) required before running contract tests.
-- Added `tests/usageFetcherContract.test.ts` skeleton gated behind `DAILY_USAGE_CONTRACT_FIXTURES_READY` plus loader utilities (`tests/helpers/dailyUsageFixture.ts`) to normalize golden fixtures before assertions.
+- Added `tests/usageFetcherContract.test.ts` skeleton gated behind `DAILY_USAGE_CONTRACT_FIXTURES_READY` plus loader utilities (`tests/helpers/dailyUsageFixture.ts`) and assertion helpers (`tests/helpers/dailyUsageAssertions.ts`) to validate metadata/tokens/windows before final contract assertions land.
+- Authored sanitization helper `scripts/sanitize-admin-usage-fixture.ts` and documented usage in `audit/golden-fixtures/README.md` (supports optional `DAILY_USAGE_SANITIZE_SALT`).
+- Added `audit/golden-fixtures/capture-template.md` to standardize fixture capture logs alongside sanitized outputs.
+- Flagged outstanding cron rehearsal artefacts via checklist in `audit/cron-dry-run/summary.md`; Workstream 2 confidence blocked until telemetry + notes + parity diff captured.
+- Documented remaining contract test TODOs (token totals, dedupe invariants, cached split validation, pricing fallback checks) within `tests/usageFetcherContract.test.ts` and `audit/golden-fixtures/test-run-logs/README.md`.
+- Added summary CLI (`scripts/summarize-daily-usage-fixture.ts`) to verify token totals and window aggregation before committing fixtures; referenced in `audit/golden-fixtures/README.md`.
+- Added TODO to summary CLI to support comparison against expected totals file for regression detection before commits.
+- Introduced `audit/golden-fixtures/expected-totals-template.json` so fixture captures can predefine totals ahead of the planned summary CLI comparison.
+- Noted pending `--expected` flag in `scripts/summarize-daily-usage-fixture.ts` (will consume expected totals template) for future regression guard.
+- Implemented `--expected`/`--tolerance` support in `scripts/summarize-daily-usage-fixture.ts` and documented new workflow in `audit/golden-fixtures/README.md` + template notes.
+- Contract test now consumes expected totals (via `DAILY_USAGE_CONTRACT_EXPECTED_TOTALS_DIR` + tolerance env) and compares aggregated summaries before other TODO assertions.
+- Updated contract test TODOs/doc guidance to focus remaining work on dedupe, cached-token split, and pricing fallback validation.
+- Added dedupe invariant assertion (`assertNoDuplicateWindows`) to contract test scaffolding; fixtures will now fail if duplicate `(window, project, key, user, models)` buckets appear.
 
 ## 2025-10-07
 - Updated telemetry diff script to ignore blank metadata rows and documented change in `memorybank/daily_usage_alignment_plan.md`.

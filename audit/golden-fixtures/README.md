@@ -20,5 +20,8 @@ This directory stores redacted OpenAI admin usage responses used for contract te
 
 ### Enabling Contract Tests
 1. Populate sanitized fixtures under `daily-usage/` as described above.
-2. Set the environment variable `DAILY_USAGE_CONTRACT_FIXTURES_READY=true` when running `pnpm tsx tests/runAllTests.ts` (or the targeted test runner). Optionally set `DAILY_USAGE_CONTRACT_FIXTURES_DIR` to point at an alternative fixture path.
-3. Run the contract test and log results to `test-run-logs/<timestamp>.md`.
+2. Sanitize raw fixture exports with `tsx scripts/sanitize-admin-usage-fixture.ts <raw.json> <redacted.json>` (optionally set `DAILY_USAGE_SANITIZE_SALT` for deterministic hashing across runs).
+3. Generate summaries for review using `tsx scripts/summarize-daily-usage-fixture.ts audit/golden-fixtures/daily-usage/<tenant>-<date>.json` and attach highlights to the capture log if anomalies appear.
+4. (Optional) Populate `audit/golden-fixtures/expected-totals-template.json` with known totals, then run `tsx scripts/summarize-daily-usage-fixture.ts audit/golden-fixtures/daily-usage/<tenant>-<date>.json --expected audit/golden-fixtures/expected-totals-<tenant>-<date>.json --tolerance 0` to automatically flag mismatches before committing.
+5. Set the environment variable `DAILY_USAGE_CONTRACT_FIXTURES_READY=true` when running `pnpm tsx tests/runAllTests.ts` (or the targeted test runner). Optionally set `DAILY_USAGE_CONTRACT_FIXTURES_DIR` to point at an alternative fixture path and `DAILY_USAGE_CONTRACT_EXPECTED_TOTALS_DIR` if expected totals sit outside `audit/golden-fixtures/expected-totals/`.
+6. Run the contract test and log results to `test-run-logs/<timestamp>.md`.

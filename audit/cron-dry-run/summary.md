@@ -29,6 +29,11 @@ Track 48-hour staging executions of the daily usage cron when `ENABLE_DAILY_USAG
 
 > TODO (Ops): Replace the sample entry above with the first staging run once the cron rehearsal starts; ensure matching artefacts are checked in before closing the workstream.
 
+### Pending Artefacts
+- [ ] 48-hour cron rehearsal telemetry appended below (minimum two runs).
+- [ ] Corresponding notes committed under `audit/cron-dry-run/notes-<date>.md` using the template.
+- [ ] Parity diff JSON for the rehearsal stored under `audit/telemetry-audit/` and linked in notes.
+
 ### Telemetry Fields Reference
 - `windowsProcessed`: Should equal number of (days × active keys) for the run window.
 - `updatedEvents`: Non-zero values expected on backfill retries; investigate spikes.
