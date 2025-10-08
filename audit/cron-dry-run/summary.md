@@ -15,19 +15,14 @@ Track 48-hour staging executions of the daily usage cron when `ENABLE_DAILY_USAG
 ## Runs
 <!-- Append newest entries to the top of this section. -->
 
-### Template
-```
-#### 2025-10-08T22:15Z (Manual Trigger)
-- Request: curl --request POST ... (link to smoke log)
-- Windows processed: 62 (expected 62)
-- Updated events: 14
+#### 2025-10-08T20:04Z (Smoke Test)
+- Request: `curl -i -H "Authorization: Bearer $CRON_SECRET" https://cogni-track-replit.vercel.app/api/cron/daily-usage` ([log](smoke-20251008T200417Z.log))
+- Windows processed: 0 (expected 0 — baseline smoke run only)
+- Updated events: 0
 - Issues by code: {}
 - Retry-After headers: none
-- Notes: observed 120ms average Neon write latency.
-- Artefacts: [telemetry JSON](../telemetry-audit/2025-10-08T22-15-00Z-cron.json)
-```
-
-> TODO (Ops): Replace the sample entry above with the first staging run once the cron rehearsal starts; ensure matching artefacts are checked in before closing the workstream.
+- Notes: Flag `ENABLE_DAILY_USAGE_WINDOWS` confirmed true; staging returned `processed:1`/`successful:1` with no warnings.
+- Artefacts: N/A (response payload embedded in log)
 
 ### Pending Artefacts
 - [ ] 48-hour cron rehearsal telemetry appended below (minimum two runs).

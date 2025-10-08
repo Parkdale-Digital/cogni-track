@@ -30,6 +30,7 @@
 - Contract test now consumes expected totals (via `DAILY_USAGE_CONTRACT_EXPECTED_TOTALS_DIR` + tolerance env) and compares aggregated summaries before other TODO assertions.
 - Updated contract test TODOs/doc guidance to focus remaining work on dedupe, cached-token split, and pricing fallback validation.
 - Added dedupe invariant assertion (`assertNoDuplicateWindows`) to contract test scaffolding; fixtures will now fail if duplicate `(window, project, key, user, models)` buckets appear.
+- Ran staging cron smoke test (`curl` against cogni-track-replit.vercel.app/api/cron/daily-usage`); logged response in `audit/cron-dry-run/smoke-20251008T200417Z.log` and created operator notes `audit/cron-dry-run/notes-2025-10-08.md` ahead of full 48h rehearsal.
 
 ## 2025-10-07
 - Updated telemetry diff script to ignore blank metadata rows and documented change in `memorybank/daily_usage_alignment_plan.md`.
