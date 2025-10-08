@@ -1136,6 +1136,10 @@ async function fetchAdminUsage(
     }
   }
 
+  return normalizeAdminUsagePages(pages, startDate);
+}
+
+function normalizeAdminUsagePages(pages: OpenAIAdminUsageResponse[], startDate: Date): UsageEventData[] {
   const events: UsageEventData[] = [];
 
   for (const page of pages) {
@@ -1173,6 +1177,20 @@ async function fetchAdminUsage(
   }
 
   return events;
+}
+
+function assertAdminUsageResponse(page: unknown, index: number): OpenAIAdminUsageResponse {
+  if (!page || typeof page !== 'object') {
+    throw new Error(`[usage-fetcher] Invalid admin usage response page at index ${index}`);
+  }
+  const cast = page as OpenAIAdminUsageResponse;
+  if (cast.data !== undefined && !Array.isArray(cast.data)) {
+    throw new Error('[usage-fetcher] Invalid admin usage response: data must be an array when present');
+  }
+  if (cast.daily_costs !== undefined && !Array.isArray(cast.daily_costs)) {
+    throw new Error('[usage-fetcher] Invalid admin usage response: daily_costs must be an array when present');
+  }
+  return cast;
 }
 
 async function fetchStandardUsage(apiKey: string, startDate: Date, endDate: Date): Promise<UsageEventData[]> {
@@ -1614,4 +1632,13 @@ export const __usageFetcherTestHooks = {
   upsertUsageEventForTest: async (db: unknown, payload: UsageEventInsert) =>
     upsertUsageEvent(db as ReturnType<typeof getDb>, payload),
   sanitizeAdminNextPageUrlForTest: sanitizeAdminNextPageUrl,
+  normalizeAdminUsagePagesForTest: (pages: unknown[], fallbackStart?: Date) => {
+    if (!Array.isArray(pages)) {
+      throw new Error('[usage-fetcher] Expected pages to be an array when normalizing admin usage fixtures');
+    }
+    return normalizeAdminUsagePages(
+      pages.map((page, index) => assertAdminUsageResponse(page, index)),
+      fallbackStart ?? new Date()
+    );
+  },
 };

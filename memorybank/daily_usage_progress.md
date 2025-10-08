@@ -15,6 +15,9 @@
 - Cleaned legacy `usage_events` rows lacking metadata using `tmp/cleanup_usage_events.sql` (deleted 16 blanks) and reran staging backfill (`pnpm usage:backfill --start 2025-09-01 --end 2025-10-01 --chunk-days 3 --label staging-post-servicetier`).
 - Generated parity diff with bundled script (`direnv exec . node tmp/usage-telemetry-diff.mjs ...`); `audit/telemetry-audit/latest-staging.json` now reports zero missing/mismatched windows.
 - Confirmed parity closure in memory bank (`memorybank/progress.md`) and closed context gap `GAP-2025-10-07-DAILY-USAGE-PARITY`.
+- Documented golden fixture requirements under `audit/golden-fixtures/README.md` and added cron rehearsal logging template instructions in `audit/cron-dry-run/summary.md`.
+- Expanded `audit/golden-fixtures/README.md` with fixture capture workflow (script pointer) and env flags (`DAILY_USAGE_CONTRACT_FIXTURES_READY`, `DAILY_USAGE_CONTRACT_FIXTURES_DIR`) required before running contract tests.
+- Added `tests/usageFetcherContract.test.ts` skeleton gated behind `DAILY_USAGE_CONTRACT_FIXTURES_READY` plus loader utilities (`tests/helpers/dailyUsageFixture.ts`) to normalize golden fixtures before assertions.
 
 ## 2025-10-07
 - Updated telemetry diff script to ignore blank metadata rows and documented change in `memorybank/daily_usage_alignment_plan.md`.
@@ -24,4 +27,3 @@
 ## 2025-10-02
 - Executed staging backfill (`usage:backfill --start 2025-09-01 --end 2025-10-01 --chunk-days 3 --label staging-repair`) to populate window metadata; recorded results in `audit/backfill-rehearsal/`.
 - Initial telemetry diff reconciliation captured in `audit/telemetry-audit/latest.json`; flagged missing windows awaiting admin grouping support.
-

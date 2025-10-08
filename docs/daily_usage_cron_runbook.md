@@ -38,6 +38,16 @@ Guide operators through staging validation of the daily usage cron job before en
 - Ensure no `simulatedKeyCount` entries appear in telemetry.
 - Update `memorybank/daily_usage_alignment_plan.md` confidence scores once artefacts are archived.
 
+## Parity Alarm Response
+1. Review the parity diff artefact linked in the alert (stored under `audit/telemetry-audit/`). Confirm whether variance exceeds the documented threshold (currently 2% token delta or any missing window).
+2. If variance is legitimate, pause the cron in staging to prevent further divergence. Capture `usage-fetcher` logs and note affected projects/keys in `audit/cron-dry-run/notes-<date>.md`.
+3. Escalate to data QA via the on-call channel with:
+   - Timestamp of the failing cron run
+   - Relevant `issuesByCode` entries and affected window range
+   - Link to the diff JSON and Neon query logs
+4. After remediation, rerun the cron manually, re-run the parity diff, and annotate recovery details in `memorybank/daily_usage_progress.md`.
+5. If variance was false-positive, update alert thresholds in `docs/daily_usage_cron_runbook.md` and record the rationale in `audit/cron-dry-run/notes-<date>.md` to prevent recurrence.
+
 ## Rollback Procedure
 - Disable the cron schedule in Vercel.
 - Reset `ENABLE_DAILY_USAGE_WINDOWS` flag to `false` in staging environment variables.

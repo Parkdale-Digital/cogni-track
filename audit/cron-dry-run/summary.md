@@ -15,3 +15,22 @@ Track 48-hour staging executions of the daily usage cron when `ENABLE_DAILY_USAG
 ## Runs
 <!-- Append newest entries to the top of this section. -->
 
+### Template
+```
+#### 2025-10-08T22:15Z (Manual Trigger)
+- Request: curl --request POST ... (link to smoke log)
+- Windows processed: 62 (expected 62)
+- Updated events: 14
+- Issues by code: {}
+- Retry-After headers: none
+- Notes: observed 120ms average Neon write latency.
+- Artefacts: [telemetry JSON](../telemetry-audit/2025-10-08T22-15-00Z-cron.json)
+```
+
+> TODO (Ops): Replace the sample entry above with the first staging run once the cron rehearsal starts; ensure matching artefacts are checked in before closing the workstream.
+
+### Telemetry Fields Reference
+- `windowsProcessed`: Should equal number of (days × active keys) for the run window.
+- `updatedEvents`: Non-zero values expected on backfill retries; investigate spikes.
+- `issuesByCode`: If populated, cross-reference `src/lib/usage-fetcher.ts` issue enums before escalating.
+- `manualFallbackWindows`: Signals dedupe fallback usage; if >0 for two consecutive runs, open an ingestion ticket.

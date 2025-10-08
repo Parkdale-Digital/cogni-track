@@ -36,6 +36,7 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
   3. Review throttling metrics with Ops, recording adjustments in the cron runbook.
 - **Confidence Target**: 7/10 once staging rehearsal metrics are approved.
   - Runbook: `audit/migration-prechecks/0003_usage_event_windows.md` defines staging apply/rollback steps (created 2025-10-02).
+  - Operator artefacts: use `audit/cron-dry-run/notes-template.md` when capturing daily rehearsal notes and store completed copies under `audit/cron-dry-run/`.
 
 ### 3. Per-Day Fetch Loop & Metadata Capture
 - **Action**: Refactor `fetchOpenAIUsage` to iterate day-by-day, persisting midnight UTC buckets along with metadata (project_id, num_model_requests, service tier, cached token splits, api_key_id).
@@ -46,6 +47,15 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
   2. Add contract tests asserting bucket counts, metadata, and cached token splits using the new fixtures.
   3. Run a feature-flagged staging dry-run to confirm per-day buckets remain stable before broad rollout.
 - **Confidence Target**: 7/10 after contract tests and staged rollout succeed.
+  - **Fixture Requirements (2025-10-08 draft)**:
+    - Two high-volume admin tenants spanning cached vs uncached token splits, saved as redacted JSON under `audit/golden-fixtures/daily-usage/<tenant>-<date>.json`.
+    - Include metadata fields: `project_id`, `openai_api_key_id`, `openai_user_id`, `service_tier`, `cached_token` breakdowns, and `num_model_requests`.
+    - Document sanitization steps in `audit/golden-fixtures/README.md` (remove user PII, round monetary fields to cents).
+  - **Contract Test Checklist**:
+    - Add `tests/usageFetcherContract.test.ts` covering bucket counts, metadata preservation, cached token math, and dedupe invariants per fixture.
+    - Verify schema guard emits no `SCHEMA_MISSING` issues when fixtures replayed via `replayDailyUsageFixture` helper.
+    - Record test run output in `audit/golden-fixtures/test-run-logs/<timestamp>.md` (see `audit/golden-fixtures/test-run-logs/README.md`) and append summary to `memorybank/daily_usage_progress.md`.
+    - Current status: `tests/usageFetcherContract.test.ts` exists as an environment-gated skeleton (set `DAILY_USAGE_CONTRACT_FIXTURES_READY=true` and optional `DAILY_USAGE_CONTRACT_FIXTURES_DIR` when fixtures are populated; remove the TODO once assertions are implemented).
 
 ### 4. Schema & API Extensions
 - **Action**: Add columns/migrations for new metadata, expose through `/api/usage`, ensure backward compatibility.
