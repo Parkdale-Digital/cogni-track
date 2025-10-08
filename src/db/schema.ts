@@ -51,6 +51,9 @@ export const usageEvents = pgTable("usage_events", {
   inputCachedImageTokens: integer("input_cached_image_tokens"),
   outputImageTokens: integer("output_image_tokens"),
 }, (usageEvents) => ({
+  // NOTE: The column order (keyId, model, windowStart) in this unique index
+  // matches the query pattern in the fetcher for optimal performance.
+  // If you change the index column order or the query pattern, review for performance impact.
   // NOTE: Column order mirrors the lookup order in fetchAndStoreUsageForUser (keyId → model → windowStart → windowEnd)
   // so modifications should evaluate query performance and dedupe semantics together.
   usageAdminBucketIdx: uniqueIndex("usage_admin_bucket_idx")
