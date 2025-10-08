@@ -21,6 +21,7 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
   - Status 2025-10-07 (latest): Added guard around `usage_admin_bucket_idx` and validated manual dedupe fallback via `pnpm usage:backfill --start 2025-09-15 --end 2025-09-16 --chunk-days 1 --label debug-admin` (two daily windows stored locally); staging diff rerun still pending refreshed Neon credentials.
   - Status 2025-10-07 (evening): Neon credentials restored; bundled script via esbuild and reran staging diff (`2025-10-07T22-44-28Z-staging.json`, SHA256 `82c61d54326a363615fe257ee7e0ae1f778c6a7ba5ee28ebd93cb3245d18a019`) — DB query succeeded but still reports 46 missing windows, so confidence remains 6/10 pending instrumentation/backfill validation.
   - Status 2025-10-07 (night): Persistence instrumentation counters added (constraint vs manual fallback) with synthetic validation sample `audit/telemetry-audit/synthetic-manual-fallback.json`; awaiting next backfill to confirm fallback usage declines.
+  - Status 2025-10-07 (night, post-analysis): Missing windows categorized in `audit/telemetry-audit/missing-windows-summary-2025-10-07.md`; real gaps isolated to project `proj_MhIbP1DyoTSqH6k2DtXVKvvV` (keys `key_mPAw5OyZbONR4dAL`, `key_NF7ZLeXYAXECwqv7`), while 15 CSV rows lack metadata and carry zero tokens.
 
 ### 2. Ingestion Window & Scheduling
 - **Action**: Design cron/backfill workflow that requests up to 30 days of data and prevents future gaps via daily pulls.
