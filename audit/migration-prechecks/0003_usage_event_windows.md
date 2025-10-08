@@ -64,3 +64,21 @@ Staging currently lacks `drizzle/0003_usage_event_windows.sql`, blocking daily u
 - [ ] Diff of pre/post schema snapshots
 - [ ] `audit/telemetry-audit/latest-staging.json` (post-migration diff)
 - [ ] Memory bank entry noting staging alignment
+
+### 2025-10-08 – verify-schema backfill dry-run
+```
+ENABLE_DAILY_USAGE_WINDOWS=true pnpm exec tsx scripts/usage-backfill.ts --days 1 --chunk-days 1 --label verify-schema --start 2025-09-01 --end 2025-09-01
+# (invoked via direnv exec with NODE_ENV=production to target staging)
+```
+Output:
+```
+[usage-backfill] Starting backfill run { userCount: 1, startDate: '2025-09-01T00:00:00.000Z', endDate: '2025-09-01T00:00:00.000Z', chunkDays: 1, runLabel: 'verify-schema' }
+[usage-backfill] Processing user { userId: 'user_33NYEYJEOVbKAFtHcAp2oVJHInH', startDate: '2025-09-01T00:00:00.000Z', endDate: '2025-09-01T00:00:00.000Z' }
+[usage-backfill] Processing chunk { userId: 'user_33NYEYJEOVbKAFtHcAp2oVJHInH', chunkIndex: 0, chunkStart: '2025-09-01T00:00:00.000Z', chunkEnd: '2025-09-01T00:00:00.000Z', days: 1, runLabel: 'verify-schema:user_33NYEYJEOVbKAFtHcAp2oVJHInH:chunk-0' }
+[usage-fetcher] Starting usage ingestion window { userId: 'user_33NYEYJEOVbKAFtHcAp2oVJHInH', startDate: '2025-09-01T00:00:00.000Z', endDate: '2025-09-01T00:00:00.000Z', runLabel: 'verify-schema:user_33NYEYJEOVbKAFtHcAp2oVJHInH:chunk-0' }
+[usage-fetcher] Pricing fallback applied { model: 'unknown', resolvedKey: 'gpt-3.5-turbo' }
+[usage-fetcher] usage_admin_bucket_idx missing; using manual dedupe fallback { reason: 'metadata-missing' }
+[usage-fetcher] Stored usage events { userId: 'user_33NYEYJEOVbKAFtHcAp2oVJHInH', keyId: 1, newBuckets: 1, updatedBuckets: 0, windows: 1, fetched: 1, persistence: { constraint: { inserted: 0, updated: 0 }, manualFallback: { inserted: 1, updated: 0 } }, manualFallbackWindows: 1, manualFallbackUsed: true, runLabel: 'verify-schema:user_33NYEYJEOVbKAFtHcAp2oVJHInH:chunk-0' }
+[usage-backfill] Chunk complete { userId: 'user_33NYEYJEOVbKAFtHcAp2oVJHInH', chunkIndex: 0, chunkStart: '2025-09-01T00:00:00.000Z', chunkEnd: '2025-09-01T00:00:00.000Z', processedKeys: 1, windowsProcessed: 1, storedEvents: 1, updatedEvents: 0, constraintInserts: 0, constraintUpdates: 0, manualFallbackInserts: 1, manualFallbackUpdates: 0, manualFallbackWindows: 1, manualFallbackKeys: 1, simulatedKeys: 0, failedKeys: 0, issues: [ { keyId: 1, message: 'Pricing fallback applied for models: unknown', code: 'PRICING_FALLBACK' } ] }
+[usage-backfill] Backfill run completed { totals: { processedUsers: 1, processedChunks: 1, processedKeys: 1, simulatedKeys: 0, failedKeys: 0, storedEvents: 1, updatedEvents: 0, windowsProcessed: 1, issues: 1, constraintInserts: 0, constraintUpdates: 0, manualFallbackInserts: 1, manualFallbackUpdates: 0, manualFallbackWindows: 1, manualFallbackKeys: 1 }, hadErrors: false }
+```

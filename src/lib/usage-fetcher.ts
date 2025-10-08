@@ -21,6 +21,9 @@ interface OpenAIAdminResultItem {
   name?: string;
   cost?: number;
   amount?: number;
+  project_id?: string;
+  api_key_id?: string;
+  user_id?: string;
   input_tokens?: number;
   output_tokens?: number;
   prompt_tokens?: number;
@@ -975,6 +978,11 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], context: AdminU
     const model = extractModelFromAdminItem(item);
     const tokensIn = safeNumber(item.input_tokens ?? item.prompt_tokens ?? item.usage?.prompt_tokens ?? 0);
     const tokensOut = safeNumber(item.output_tokens ?? item.completion_tokens ?? item.usage?.completion_tokens ?? 0);
+    const projectId = item.project_id ?? context.projectId;
+    const apiKeyId = item.api_key_id ?? context.openaiApiKeyId;
+    const userId = item.user_id ?? context.openaiUserId;
+    const batch = item.batch ?? context.batch;
+    const serviceTier = item.service_tier ?? context.serviceTier;
     let cost = safeNumber(item.cost ?? item.amount ?? item.usage?.total_cost ?? 0);
     let pricingKey: string | undefined;
     let pricingFallback: boolean | undefined;
@@ -992,11 +1000,11 @@ function normalizeAdminResults(results: OpenAIAdminResultItem[], context: AdminU
       timestamp: context.timestamp,
       windowStart: context.windowStart,
       windowEnd: context.windowEnd,
-      projectId: context.projectId,
-      openaiApiKeyId: context.openaiApiKeyId,
-      openaiUserId: context.openaiUserId,
-      serviceTier: item.service_tier ?? context.serviceTier,
-      batch: item.batch ?? context.batch,
+      projectId,
+      openaiApiKeyId: apiKeyId,
+      openaiUserId: userId,
+      serviceTier,
+      batch,
       numModelRequests: optionalNumber(item.num_model_requests) ?? context.numModelRequests,
       inputCachedTokens: optionalNumber(item.input_cached_tokens),
       inputUncachedTokens: optionalNumber(item.input_uncached_tokens),
@@ -1041,6 +1049,7 @@ async function fetchAdminUsage(
   current.searchParams.set('start_time', startEpoch.toString());
   current.searchParams.set('end_time', endEpoch.toString());
   current.searchParams.set('limit', OPENAI_ADMIN_LIMIT.toString());
+  current.searchParams.set('group_by', 'project_id,user_id,api_key_id,model,batch');
 
   let safety = 0;
   while (safety < 20) {

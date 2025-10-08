@@ -8,6 +8,9 @@
 - **Evidence:**
   - `audit/telemetry-audit/2025-10-07T22-44-28Z-staging.json`
   - `audit/telemetry-audit/missing-windows-summary-2025-10-07.md`
+  - `audit/telemetry-audit/latest-staging.json` (2025-10-08 rerun)
+  - `audit/backfill-rehearsal/2025-10-08-staging-repair.log`
+  - `audit/backfill-rehearsal/2025-10-08-staging-groupby-v2.log`
 - **Next Validation Checkpoint:** After staging migration `0003_usage_event_windows.sql` is applied and filtered diff rerun with persistence counters (target date: 2025-10-10).
 - **Status:** Active
 
