@@ -11,6 +11,7 @@
   - `audit/telemetry-audit/latest-staging.json` (2025-10-08 rerun)
   - `audit/backfill-rehearsal/2025-10-08-staging-repair.log`
   - `audit/backfill-rehearsal/2025-10-08-staging-groupby-v2.log`
+  - `audit/telemetry-audit/admin-usage-2025-09-10.json` (Admin API sample showing `service_tier: null`)
 - **Next Validation Checkpoint:** After staging migration `0003_usage_event_windows.sql` is applied and filtered diff rerun with persistence counters (target date: 2025-10-10).
 - **Status:** Active
 

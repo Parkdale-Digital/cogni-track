@@ -264,7 +264,6 @@ function buildKey(parts: NormalizedKey): string {
     parts.apiKeyId || '',
     parts.userId || '',
     parts.model || '',
-    parts.serviceTier || '',
     parts.batch ? '1' : '0',
   ].join('|');
 }
@@ -277,13 +276,12 @@ function aggregateCsvRows(rows: CsvRow[], source: string): AggregatedMap {
       metric,
       value: normalizeNumber(row[metric]),
     }));
-    const hasNonZeroMetrics = normalizedMetrics.some(({ value }) => value !== 0);
     const projectId = (row['project_id'] ?? '').trim();
     const apiKeyId = (row['api_key_id'] ?? '').trim();
     const userId = (row['user_id'] ?? '').trim();
     const hasMetadata = Boolean(projectId || apiKeyId || userId);
 
-    if (!hasMetadata && !hasNonZeroMetrics) {
+    if (!hasMetadata) {
       continue;
     }
 
@@ -377,23 +375,35 @@ async function loadDatabaseAggregates(options: { from?: string; to?: string }): 
       serviceTier: row.serviceTier ?? '',
       batch: normalizeBoolean(row.batch),
     };
+
+    const hasMetadata = Boolean(keyParts.projectId || keyParts.apiKeyId || keyParts.userId);
+    const normalizedMetrics: MetricSnapshot = {
+      input_tokens: normalizeNumber(row.tokensIn),
+      output_tokens: normalizeNumber(row.tokensOut),
+      input_cached_tokens: normalizeNumber(row.inputCachedTokens),
+      input_uncached_tokens: normalizeNumber(row.inputUncachedTokens),
+      input_text_tokens: normalizeNumber(row.inputTextTokens),
+      output_text_tokens: normalizeNumber(row.outputTextTokens),
+      input_cached_text_tokens: normalizeNumber(row.inputCachedTextTokens),
+      input_audio_tokens: normalizeNumber(row.inputAudioTokens),
+      input_cached_audio_tokens: normalizeNumber(row.inputCachedAudioTokens),
+      output_audio_tokens: normalizeNumber(row.outputAudioTokens),
+      input_image_tokens: normalizeNumber(row.inputImageTokens),
+      input_cached_image_tokens: normalizeNumber(row.inputCachedImageTokens),
+      output_image_tokens: normalizeNumber(row.outputImageTokens),
+      num_model_requests: normalizeNumber(row.numModelRequests),
+    };
+
+    if (!hasMetadata) {
+      continue;
+    }
+
     const key = buildKey(keyParts);
     const existing = map.get(key);
     const metrics = existing?.metrics ?? createEmptyMetrics();
-    metrics['input_tokens'] += normalizeNumber(row.tokensIn);
-    metrics['output_tokens'] += normalizeNumber(row.tokensOut);
-    metrics['input_cached_tokens'] += normalizeNumber(row.inputCachedTokens);
-    metrics['input_uncached_tokens'] += normalizeNumber(row.inputUncachedTokens);
-    metrics['input_text_tokens'] += normalizeNumber(row.inputTextTokens);
-    metrics['output_text_tokens'] += normalizeNumber(row.outputTextTokens);
-    metrics['input_cached_text_tokens'] += normalizeNumber(row.inputCachedTextTokens);
-    metrics['input_audio_tokens'] += normalizeNumber(row.inputAudioTokens);
-    metrics['input_cached_audio_tokens'] += normalizeNumber(row.inputCachedAudioTokens);
-    metrics['output_audio_tokens'] += normalizeNumber(row.outputAudioTokens);
-    metrics['input_image_tokens'] += normalizeNumber(row.inputImageTokens);
-    metrics['input_cached_image_tokens'] += normalizeNumber(row.inputCachedImageTokens);
-    metrics['output_image_tokens'] += normalizeNumber(row.outputImageTokens);
-    metrics['num_model_requests'] += normalizeNumber(row.numModelRequests);
+    for (const metric of metricColumns) {
+      metrics[metric] += normalizedMetrics[metric];
+    }
     map.set(key, {
       ...keyParts,
       metrics,
