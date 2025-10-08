@@ -4,6 +4,10 @@ CogniTrack is an internal dashboard for monitoring Large Language Model (LLM) AP
 
 ## Getting started
 
+### Prerequisites
+
+- [Node.js 20.18.1](https://nodejs.org/) (see [`.nvmrc`](.nvmrc) for the pinned runtime used in CI).
+
 ### Application
 
 ```bash
