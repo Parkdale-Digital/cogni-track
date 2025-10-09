@@ -1,125 +1,785 @@
-# Anthropic Usage API Integration Plan
+# Anthropic Usage API Integration Plan (Revised)
 _Last updated: 2025-10-09_
+_Revision: 2.0 - Comprehensive architectural enhancement_
 
 ## Summary
-- Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion pipeline alongside OpenAI.
-- Preserve auditability, dedupe guarantees, and accessibility-focused analytics UX.
-- Deliver toggleable rollout guarded by feature flags and backed by documented runbooks.
+Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion pipeline alongside OpenAI through a **provider abstraction layer**. This revision addresses critical architectural gaps identified in the original plan, including provider abstraction, schema design, deduplication strategy, cost normalization, feature flag infrastructure, and comprehensive testing.
+
+**Key Changes from v1.0:**
+- Added provider abstraction layer design (Step 1.5)
+- Enhanced schema design with explicit migration strategy
+- Specified Anthropic SDK dependency
+- Detailed deduplication and cost normalization approaches
+- Comprehensive feature flag infrastructure design
+- Expanded testing, telemetry, and UI/UX specifications
+- Enhanced security and rollback procedures
 
 ## Success Criteria
-- Anthropic usage and cost data ingested into `usage_events` (or successor tables) with provider metadata and parity telemetry.
-- Cron/backfill processes handle Anthropic provider without impacting OpenAI ingestion SLAs.
-- Analytics dashboards allow filtering/aggregation by provider and display Anthropic metrics without regressions in accessibility or visual tokens.
-- Audit artefacts (telemetry diffs, runbooks, rollback instructions) documented under `/audit` and memory bank updated.
+- **Provider Abstraction**: Clean provider interface enabling future LLM provider additions without core refactoring
+- **Data Integrity**: Anthropic usage/cost data ingested with provider-aware deduplication guarantees
+- **Schema Compatibility**: Existing OpenAI queries unaffected; new provider dimension supports filtering/aggregation
+- **Cost Accuracy**: Normalized cost reporting across providers with clear attribution
+- **Feature Flags**: Toggleable rollout with granular control (global, per-org, per-user)
+- **Analytics Parity**: Dashboards display both providers with accessibility compliance and no visual regressions
+- **Audit Trail**: Complete telemetry diffs, runbooks, rollback procedures documented under `/audit`
+- **Performance**: No degradation to OpenAI ingestion SLAs; Anthropic ingestion meets defined thresholds
 
 ## Preconditions & Dependencies
-- Admin Anthropic API key issued with Usage & Cost API entitlements.
-- `anthropic-version` header value confirmed (currently `2023-06-01` per docs).
-- Network egress to `https://api.anthropic.com`.
-- Feature flag strategy agreed (e.g., `ENABLE_ANTHROPIC_USAGE`).
-- GAP-2025-10-09-ANTHROPIC-DOCS resolved (✅ 2025-10-09).
+
+### API Access & Configuration
+- Admin Anthropic API key issued with Usage & Cost API entitlements
+- `anthropic-version` header value confirmed (currently `2023-06-01`)
+- Network egress to `https://api.anthropic.com` approved
+- API rate limits documented (requests/min, daily quotas)
+
+### Technical Dependencies
+- Anthropic SDK added to `package.json` (`@anthropic-ai/sdk` latest stable)
+- Feature flag infrastructure implemented (see Step 3c)
+- Provider abstraction interfaces defined (see Step 1.5)
+- Schema migrations prepared and reviewed (see Step 3b)
+
+### Documentation & Governance
+- GAP-2025-10-09-ANTHROPIC-DOCS resolved (✅ 2025-10-09)
+- Security review completed for multi-provider credential management
+- Legal review of Anthropic data handling requirements
+- Stakeholder sign-off on provider abstraction architecture
 
 ## Implementation Steps
 
 ### 1. Confirm Anthropic Usage API Reference *(Completed 2025-10-09)*
 - **Tasks**
-  - Retrieve official Usage & Cost API specification via Context7 `/llmstxt/anthropic_llms_txt`.
-  - Capture endpoints `/v1/organizations/usage_report/messages`, `/v1/organizations/cost_report`, `/v1/usage`, required headers, and parameter semantics.
-  - Store findings in memory bank and audit-ready notes.
-- **Risks (3/10)**: Documentation drift or missing beta flags.  
-  - *Mitigation*: Cross-verify with latest release notes and request vendor confirmation during integration review.
-- **Confidence (8/10)**: Primary docs secured; minor uncertainty around future revisions.
-- **Validation**: Docs archived; knowledge entry stored (2025-10-09).
-- **Rollback**: N/A (read-only step).
+  - Retrieve official Usage & Cost API specification via Context7 `/llmstxt/anthropic_llms_txt`
+  - Capture endpoints: `/v1/organizations/usage_report/messages`, `/v1/organizations/cost_report`, `/v1/usage`
+  - Document required headers (`x-api-key`, `anthropic-version`), parameter semantics, pagination
+  - Identify Anthropic-specific token types: `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`
+  - Store findings in `audit/anthropic-api-spec/` and memory bank
+- **Risks (3/10)**: Documentation drift or missing beta flags
+  - *Mitigation*: Cross-verify with latest release notes; request vendor confirmation during integration review
+- **Confidence (8/10)**: Primary docs secured; minor uncertainty around future revisions
+- **Validation**: Docs archived at `audit/anthropic-api-spec/2025-10-09.md`; knowledge entry stored
+- **Rollback**: N/A (read-only step)
+
+### 1.5. Design Provider Abstraction Layer *(NEW - Critical Foundation)*
+- **Tasks**
+  - **Define Provider Interface**: Create `src/lib/providers/types.ts` with:
+    ```typescript
+    interface UsageProvider {
+      name: 'openai' | 'anthropic';
+      fetchUsage(params: UsageFetchParams): Promise<UsageResponse>;
+      normalizeUsage(raw: unknown): NormalizedUsageEvent[];
+      getDedupeKey(event: NormalizedUsageEvent): string;
+      normalizeCost(raw: unknown): NormalizedCostEvent[];
+    }
+    
+    interface NormalizedUsageEvent {
+      provider: string;
+      eventId: string;
+      timestamp: Date;
+      organizationId: string;
+      projectId?: string;
+      model: string;
+      tokens: {
+        input: number;
+        output: number;
+        cached?: number;
+        cacheCreation?: number;
+        cacheRead?: number;
+      };
+      metadata: Record<string, unknown>;
+    }
+    ```
+  - **Create Adapter Pattern**: Implement `OpenAIProvider` and `AnthropicProvider` classes
+  - **Provider Registry**: Create `src/lib/providers/registry.ts` for dynamic provider lookup
+  - **Document Architecture**: Add `docs/architecture/provider-abstraction.md` with diagrams
+- **Risks (7/10)**: Abstraction too rigid or too loose; future providers don't fit
+  - *Mitigation*: Review with 3+ future provider scenarios (Google, Cohere, local models); prototype with fixtures
+- **Confidence (6/10)**: Pattern proven but requires careful design for extensibility
+- **Validation**: 
+  - Architecture review with team
+  - Prototype both providers against interface
+  - Document extension points for future providers
+- **Rollback**: Remove abstraction files; revert to direct OpenAI implementation
 
 ### 2. Audit Existing Usage Ingestion Foundations
 - **Tasks**
-  - Inspect `src/lib/usage-fetcher.ts`, cron routes, Drizzle schema, and telemetry pipelines to map provider-dependent logic.
-  - Inventory assumptions (naming, enums, index constraints) tied to OpenAI-only flows.
-  - Update audit notes with Anthropic deltas (e.g., field mappings, rate limit expectations).
-- **Risks (5/10)**: Overlooking implicit OpenAI-only constraints leading to ingestion bugs.  
-  - *Mitigation*: Trace end-to-end (fetch → normalize → persist → analytics) and document mismatches before coding.
-- **Confidence (7/10)**: Codebase well-understood, but requires careful review for hidden coupling.
-- **Validation**: Annotated diagrams/checklist documenting flow; peer skim before implementation.
-- **Rollback**: If new findings contradict assumptions, pause and update plan; no code changes yet.
+  - **Map OpenAI-Specific Logic**: Inspect `src/lib/usage-fetcher.ts`, cron routes, Drizzle schema
+  - **Identify Coupling Points**: Document assumptions tied to OpenAI (naming, enums, index constraints)
+  - **Token Field Mapping**: Compare OpenAI token structure vs Anthropic (cached tokens, prompt caching)
+  - **Dedupe Logic Analysis**: Review existing dedupe keys and constraints
+  - **Rate Limit Patterns**: Document current throttling/retry mechanisms
+  - **Telemetry Audit**: Inventory existing telemetry points and provider assumptions
+  - **Create Compatibility Matrix**: Document Anthropic deltas (field mappings, rate limits, pagination)
+- **Risks (5/10)**: Overlooking implicit OpenAI-only constraints leading to ingestion bugs
+  - *Mitigation*: Trace end-to-end (fetch → normalize → persist → analytics); peer review findings
+- **Confidence (7/10)**: Codebase well-understood, but requires careful review for hidden coupling
+- **Validation**: 
+  - Annotated flow diagrams in `audit/provider-coupling-analysis.md`
+  - Compatibility matrix reviewed by team
+  - Checklist of all provider-dependent code locations
+- **Rollback**: If findings contradict assumptions, pause and update plan; no code changes yet
 
-### 3. Design Configuration & Schema Extensions
+### 3a. Design Provider Abstraction & Interfaces *(NEW - Split from Step 3)*
 - **Tasks**
-  - Define env vars (`ANTHROPIC_ADMIN_API_KEY`, `ANTHROPIC_USAGE_BASE_URL`, rate limit knobs).
-  - Map Anthropic usage payloads to existing tables; determine if new columns or tables are required.
-  - Draft migration strategy (including feature flag/backfill order) and update docs (`docs/`, `memorybank/`).
-- **Risks (6/10)**: Schema misalignment could break dedupe or analytics queries.  
-  - *Mitigation*: Prototype mapping against sample JSON, run migration impact assessment, align with data stakeholders.
-- **Confidence (6/10)**: Payload understanding solid; storage fit requires validation.
-- **Validation**: Schema diff review, dry-run migrations in staging sandbox, confirm indexes handle provider dimension.
-- **Rollback**: Revert draft migrations, remove env defaults, document outcomes in `rollback_log.md`.
+  - **Implement Provider Interface**: Create concrete implementations in `src/lib/providers/`
+    - `openai-provider.ts`: Wrap existing OpenAI logic
+    - `anthropic-provider.ts`: New Anthropic implementation
+    - `base-provider.ts`: Shared utilities (retry, rate limiting, telemetry)
+  - **Provider Factory**: Implement `createProvider(name: string): UsageProvider`
+  - **Configuration Schema**: Define provider-specific config structure
+  - **Error Handling**: Standardize error types across providers
+  - **Telemetry Integration**: Ensure provider name tagged in all metrics
+- **Risks (7/10)**: Abstraction leaks or insufficient flexibility
+  - *Mitigation*: Prototype with real API responses; validate with fixtures from both providers
+- **Confidence (6/10)**: Design solid but implementation complexity high
+- **Validation**:
+  - Unit tests for both provider implementations
+  - Integration tests with fixtures
+  - Code review focusing on extensibility
+- **Rollback**: Remove provider abstraction; revert to monolithic fetcher
 
-### 4. Implement Anthropic Fetcher Module
+### 3b. Design Schema Extensions & Migration Strategy *(NEW - Split from Step 3)*
 - **Tasks**
-  - Create dedicated fetcher with auth headers, pagination, throttling, and retry logic mirroring OpenAI implementation.
-  - Support bucket width, grouping, and filter parameters; normalize token fields (cached, uncached, output, server tool).
-  - Emit structured telemetry (latency, rate-limit hits, response anomalies).
-- **Risks (6/10)**: Unhandled rate-limit semantics or payload variance causing ingestion stalls.  
-  - *Mitigation*: Adopt Retry-After aware logic, configurable ceilings, and feature-flagged dry-run mode.
-- **Confidence (6/10)**: Patterns reusable but real responses untested.
-- **Validation**: Unit tests against fixtures, dry-run fetch with synthetic environment, log inspection.
-- **Rollback**: Remove new fetcher module, disable flag, revert config; ensure cron skips provider gracefully.
+  - **Schema Analysis**: Evaluate `usage_events` table for multi-provider support
+  - **Add Provider Column**: `provider VARCHAR(20) NOT NULL DEFAULT 'openai'`
+  - **Token Schema Enhancement**: Support Anthropic's cached token types
+    ```sql
+    ALTER TABLE usage_events ADD COLUMN cache_creation_tokens INTEGER;
+    ALTER TABLE usage_events ADD COLUMN cache_read_tokens INTEGER;
+    ```
+  - **Composite Dedupe Keys**: Update unique constraints to include provider
+    ```sql
+    CREATE UNIQUE INDEX usage_events_provider_dedupe 
+    ON usage_events(provider, organization_id, event_id, timestamp);
+    ```
+  - **Cost Normalization Table**: Consider separate `normalized_costs` table for cross-provider aggregation
+  - **Migration Script**: Create `drizzle/0004_multi_provider_support.sql`
+  - **Backfill Strategy**: Plan for adding provider='openai' to existing rows
+  - **Index Optimization**: Ensure analytics queries remain performant with provider dimension
+- **Risks (8/10)**: Schema changes break existing queries or analytics
+  - *Mitigation*: 
+    - Dry-run migrations in staging
+    - Create view layer for backward compatibility
+    - Comprehensive query impact analysis
+    - Staged rollout with feature flags
+- **Confidence (5/10)**: High-impact changes requiring extensive validation
+- **Validation**:
+  - Schema diff review with DBA/senior engineers
+  - Query performance benchmarks (before/after)
+  - Dry-run migration on production snapshot
+  - Validate all existing analytics queries still work
+- **Rollback**: 
+  - Revert migration script
+  - Drop new columns/indexes
+  - Restore original schema
+  - Document rollback in `audit/rollback-procedures/schema-rollback.md`
 
-### 5. Persist & Schedule Anthropic Usage
+### 3c. Design Feature Flag Infrastructure *(NEW - Split from Step 3)*
 - **Tasks**
-  - Integrate fetcher into ingestion coordinator, ensuring provider-aware normalization and dedupe.
-  - Update cron/backfill scripts to iterate providers, track telemetry per provider, and guard with feature flag.
-  - Ensure DB writes include provider metadata for analytics alignment.
-- **Risks (7/10)**: Mixed-provider dedupe or telemetry errors causing data corruption.  
-  - *Mitigation*: Provider-aware upsert keys, staging dry-run with fixtures, double-entry logging before prod enablement.
-- **Confidence (5/10)**: Integration complexity higher; requires careful testing.
-- **Validation**: Staging dry-run, telemetry diff (Anthropic-only fixtures), integrity checks on `usage_events`.
-- **Rollback**: Toggle flag off, purge Anthropic rows via timestamp/provider filters, verify OpenAI ingestion unaffected.
+  - **Flag Storage**: Implement environment-based flags initially
+    ```typescript
+    // .env.local
+    ENABLE_ANTHROPIC_USAGE=false
+    ANTHROPIC_ROLLOUT_PERCENTAGE=0
+    ANTHROPIC_ALLOWED_ORGS=org_123,org_456
+    ```
+  - **Flag Service**: Create `src/lib/feature-flags.ts`
+    ```typescript
+    interface FeatureFlags {
+      isAnthropicEnabled(orgId?: string): boolean;
+      getAnthropicRolloutPercentage(): number;
+      isAnthropicAllowedForOrg(orgId: string): boolean;
+    }
+    ```
+  - **Gradual Rollout Logic**: Implement percentage-based rollout with org allowlist
+  - **Admin UI**: Add feature flag toggle to admin dashboard (future enhancement)
+  - **Audit Logging**: Log all flag checks and state changes
+  - **Documentation**: Create `docs/operations/feature-flags.md`
+- **Risks (5/10)**: Flag logic bugs causing unintended enablement/disablement
+  - *Mitigation*: 
+    - Comprehensive unit tests for flag logic
+    - Default to disabled state
+    - Require explicit opt-in for production
+    - Audit trail for all flag changes
+- **Confidence (7/10)**: Pattern well-established; implementation straightforward
+- **Validation**:
+  - Unit tests covering all flag scenarios
+  - Integration tests with different flag states
+  - Manual testing of rollout percentages
+  - Verify audit logging captures all flag checks
+- **Rollback**: Set all flags to false; remove flag checks if needed
 
-### 6. Expand Analytics & UI Coverage
+### 4. Implement Anthropic Provider Module
 - **Tasks**
-  - Extend aggregation services and UI filters to include `provider` dimension (Anthropic vs OpenAI).
-  - Update charts, summaries, and exports to handle Anthropic data while preserving accessibility tokens.
-  - Add analytics tests/snapshots for multi-provider scenarios.
-- **Risks (6/10)**: UI regressions or misleading combined metrics.  
-  - *Mitigation*: Feature-gate UI changes, conduct accessibility/visual regression pass, validate with sample datasets.
-- **Confidence (6/10)**: Existing UI patterns guide implementation but require QA.
-- **Validation**: Manual a11y sweep, light/dark visual checks, Jest/Playwright snapshots if available.
-- **Rollback**: Revert UI changes, disable provider toggle, confirm dashboards render original data.
+  - **Add Anthropic SDK**: `pnpm add @anthropic-ai/sdk`
+  - **Implement AnthropicProvider**: Create `src/lib/providers/anthropic-provider.ts`
+    - Auth headers (`x-api-key`, `anthropic-version: 2023-06-01`)
+    - Pagination handling (cursor-based)
+    - Rate limiting (respect `retry-after` headers)
+    - Token normalization (map Anthropic fields to common schema)
+  - **Cost Fetching**: Implement cost report endpoint integration
+  - **Error Handling**: Map Anthropic error codes to standard error types
+  - **Retry Logic**: Exponential backoff with jitter
+  - **Telemetry**: Emit provider-specific metrics
+    - `anthropic.api.latency`
+    - `anthropic.api.rate_limit_hits`
+    - `anthropic.api.errors`
+  - **Dry-Run Mode**: Support fetch-only mode without persistence (for testing)
+- **Risks (6/10)**: Unhandled rate-limit semantics or payload variance causing ingestion stalls
+  - *Mitigation*: 
+    - Adopt Retry-After aware logic
+    - Configurable rate limit ceilings
+    - Feature-flagged dry-run mode
+    - Comprehensive error logging
+- **Confidence (6/10)**: Patterns reusable but real responses untested
+- **Validation**:
+  - Unit tests against Anthropic API fixtures
+  - Integration tests with sandbox API key
+  - Dry-run fetch with production credentials (no persistence)
+  - Log inspection for error handling
+  - Rate limit testing with controlled burst
+- **Rollback**: 
+  - Remove Anthropic SDK dependency
+  - Delete anthropic-provider.ts
+  - Disable feature flag
+  - Ensure cron skips provider gracefully
 
-### 7. Validation, Monitoring & Rollout
+### 5. Implement Deduplication Strategy
 - **Tasks**
-  - Execute validation pipeline (see below) including dry-run ingestion, staging diff, telemetry audits.
-  - Define alert thresholds for Anthropic ingestion (rate-limit spikes, missing buckets).
-  - Plan phased rollout: internal testing → staged enablement → full deployment.
-- **Risks (5/10)**: Undetected data drift slipping into production.  
-  - *Mitigation*: Expand telemetry dashboards, schedule post-rollout audits, keep rollout reversible with flags.
-- **Confidence (6/10)**: Validation framework exists; new provider adds moderate complexity.
-- **Validation**: Completed pipeline run with documented artefacts; sign-off from analytics stakeholders.
-- **Rollback**: Disable feature flag, clear Anthropic caches/queues, restore baseline telemetry thresholds.
+  - **Define Dedupe Keys**: Provider-aware composite keys
+    ```typescript
+    // OpenAI: provider + org_id + aggregation_timestamp + snapshot_id
+    // Anthropic: provider + org_id + message_id + timestamp
+    ```
+  - **Update Dedupe Logic**: Modify `src/lib/usage-fetcher.ts` to use provider-specific keys
+  - **Database Constraints**: Ensure unique indexes include provider dimension
+  - **Conflict Resolution**: Define behavior for duplicate detection across providers
+  - **Audit Trail**: Log all dedupe decisions with provider context
+  - **Testing**: Create fixtures with intentional duplicates for both providers
+- **Risks (8/10)**: Incorrect dedupe logic causing data loss or duplication
+  - *Mitigation*:
+    - Extensive unit tests with edge cases
+    - Staging validation with known duplicate scenarios
+    - Double-entry logging before production
+    - Rollback plan for purging incorrect data
+- **Confidence (5/10)**: Critical for data integrity; requires careful implementation
+- **Validation**:
+  - Unit tests with duplicate fixtures
+  - Staging dry-run with intentional duplicates
+  - Verify unique constraint violations handled correctly
+  - Audit log review for dedupe decisions
+- **Rollback**:
+  - Revert dedupe logic changes
+  - Purge Anthropic data if corruption detected
+  - Restore original OpenAI-only dedupe
 
-### 8. Documentation & Operationalization
+### 6. Implement Cost Normalization
 - **Tasks**
-  - Update `/docs`, `/audit`, and memory bank entries (progress, active context, runbooks).
-  - Record final plan execution summary and outstanding follow-ups.
-  - Ensure on-call/operations have clear playbooks for Anthropic ingestion issues.
-- **Risks (4/10)**: Knowledge gaps hinder long-term maintenance.  
-  - *Mitigation*: Tie documentation to definition-of-done, schedule periodic review (memory bank Tier 1 log).
-- **Confidence (8/10)**: Documentation process well established.
-- **Validation**: Completed doc updates, memory bank review entries, audit artefacts.
-- **Rollback**: N/A (documentation step).
+  - **Cost Schema**: Define normalized cost structure
+    ```typescript
+    interface NormalizedCost {
+      provider: string;
+      timestamp: Date;
+      organizationId: string;
+      model: string;
+      costUsd: number;
+      currency: 'USD';
+      billingPeriod: { start: Date; end: Date };
+      metadata: {
+        rawCost: number;
+        conversionRate?: number;
+        pricingModel: string;
+      };
+    }
+    ```
+  - **OpenAI Cost Mapping**: Extract from existing cost reports
+  - **Anthropic Cost Mapping**: Parse Anthropic cost report format
+  - **Currency Normalization**: Ensure consistent USD representation
+  - **Aggregation Logic**: Support cross-provider cost summation
+  - **Cost Attribution**: Track costs by provider, org, project, model
+- **Risks (6/10)**: Cost calculation errors leading to billing discrepancies
+  - *Mitigation*:
+    - Validate against known cost totals
+    - Implement cost reconciliation checks
+    - Audit trail for all cost calculations
+    - Manual review of first production costs
+- **Confidence (6/10)**: Straightforward mapping but requires validation
+- **Validation**:
+  - Unit tests with known cost fixtures
+  - Compare calculated costs against provider dashboards
+  - Staging validation with real cost data
+  - Manual review by finance/ops team
+- **Rollback**:
+  - Revert cost normalization logic
+  - Restore original OpenAI cost calculations
+  - Purge Anthropic cost data if needed
 
-## Validation Pipeline (Cross-Step)
-1. **Pre-check**: Re-read Anthropic Usage & Cost API spec, confirm env vars set safely (no dev/build scripts run).  
-2. **Simulation**: Dry-run ingestion using fixtures/sandbox, with feature flag off for production.  
-3. **Static Checks**: `pnpm lint`, `pnpm typecheck` (ensure no `npm run dev/build` without user approval).  
-4. **Integration Tests**: Staging ingestion with telemetry diff comparisons and audit artefacts.  
-5. **Manual Review**: Analytics/product review of dashboards; security sign-off for new credentials.
+### 7. Persist & Schedule Multi-Provider Ingestion
+- **Tasks**
+  - **Update Ingestion Coordinator**: Modify to iterate over enabled providers
+  - **Provider-Aware Persistence**: Ensure all DB writes include provider metadata
+  - **Cron Job Updates**: Modify `scripts/usage-backfill.ts` for multi-provider support
+  - **Scheduling Strategy**: 
+    - Sequential ingestion (OpenAI first, then Anthropic) to isolate failures
+    - Or parallel with separate error handling per provider
+  - **Telemetry Per Provider**: Track ingestion metrics separately
+  - **Feature Flag Integration**: Skip Anthropic if flag disabled
+  - **Error Isolation**: Ensure Anthropic failures don't block OpenAI ingestion
+- **Risks (7/10)**: Mixed-provider ingestion errors causing data corruption
+  - *Mitigation*:
+    - Provider-aware upsert keys
+    - Staging dry-run with fixtures
+    - Double-entry logging before prod
+    - Separate error queues per provider
+- **Confidence (5/10)**: Integration complexity high; requires careful testing
+- **Validation**:
+  - Staging dry-run with both providers
+  - Telemetry diff (Anthropic-only fixtures)
+  - Integrity checks on `usage_events`
+  - Verify OpenAI ingestion unaffected
+  - Monitor error rates per provider
+- **Rollback**:
+  - Toggle feature flag off
+  - Purge Anthropic rows via provider filter
+  - Verify OpenAI ingestion continues normally
+  - Document rollback in audit log
 
-## Rollback Protocol (High-Level)
-1. Disable Anthropic feature flag and halt scheduler jobs for the provider.  
-2. Revert migrations/config (if necessary) or execute rollback scripts documented per step.  
-3. Purge Anthropic-specific data inserts if corruption detected, leveraging provider/timestamp filters.  
-4. Validate rollback via telemetry, diff scripts, and manual dashboard checks.  
-5. Log rollback actions in `rollback_log.md` with timestamps and confirmations.
+### 8. Expand Analytics & UI Coverage
+- **Tasks**
+  - **UI/UX Specification**: Create mockups for provider filtering
+    - Add provider dropdown/toggle to `FilterableAnalyticsDashboard`
+    - Support "All Providers", "OpenAI Only", "Anthropic Only" views
+    - Display provider badges on usage cards
+  - **Aggregation Services**: Update `src/components/DataAggregation.tsx`
+    - Add provider dimension to aggregation queries
+    - Support cross-provider totals and per-provider breakdowns
+  - **Chart Updates**: Modify `UsageChart.tsx` for multi-provider data
+    - Color-code by provider
+    - Support stacked or grouped views
+    - Add provider legend
+  - **Export Controls**: Update CSV/JSON exports to include provider column
+  - **Accessibility**: Ensure provider indicators have proper ARIA labels
+  - **Visual Regression Testing**: Capture screenshots for comparison
+- **Risks (6/10)**: UI regressions or misleading combined metrics
+  - *Mitigation*:
+    - Feature-gate UI changes
+    - Conduct accessibility audit
+    - Visual regression testing (light/dark modes)
+    - Validate with sample datasets
+    - User acceptance testing
+- **Confidence (6/10)**: Existing UI patterns guide implementation but require QA
+- **Validation**:
+  - Manual a11y sweep with screen reader
+  - Light/dark mode visual checks
+  - Jest/Playwright snapshots
+  - User acceptance testing with stakeholders
+  - Verify no regressions in OpenAI-only view
+- **Rollback**:
+  - Revert UI changes
+  - Disable provider toggle
+  - Confirm dashboards render original data
+  - Remove provider-specific styling
 
+### 9. Comprehensive Testing & Validation
+- **Tasks**
+  - **Unit Tests**: Provider abstraction, dedupe logic, cost normalization
+  - **Integration Tests**: 
+    - Full ingestion flow with both providers
+    - Mixed-provider scenarios
+    - Feature flag combinations
+  - **Load Testing**: Concurrent ingestion from both providers
+  - **Fixture Creation**: Comprehensive test fixtures for both providers
+    - `audit/anthropic-fixtures/usage_report_sample.json`
+    - `audit/anthropic-fixtures/cost_report_sample.json`
+  - **Telemetry Validation**: Compare telemetry diffs across providers
+  - **Rollback Rehearsal**: Practice full rollback procedure in staging
+  - **Performance Benchmarks**: Ensure no degradation to OpenAI ingestion
+- **Risks (5/10)**: Insufficient test coverage leading to production issues
+  - *Mitigation*:
+    - Achieve >80% code coverage for new code
+    - Staging validation with production-like data
+    - Gradual rollout with monitoring
+    - Automated regression tests
+- **Confidence (7/10)**: Testing framework exists; needs expansion
+- **Validation**:
+  - All tests passing in CI/CD
+  - Code coverage reports reviewed
+  - Staging validation sign-off
+  - Performance benchmarks meet SLAs
+- **Rollback**: N/A (testing phase)
+
+### 10. Telemetry & Monitoring Setup
+- **Tasks**
+  - **Define Telemetry Schema**: Provider-specific metrics
+    ```typescript
+    {
+      provider: 'anthropic' | 'openai',
+      metric: 'ingestion.latency' | 'ingestion.errors' | 'api.rate_limit',
+      value: number,
+      timestamp: Date,
+      metadata: { endpoint, statusCode, retryCount }
+    }
+    ```
+  - **Alert Thresholds**: Define per-provider alerts
+    - Anthropic ingestion latency > 5min
+    - Anthropic error rate > 5%
+    - Anthropic rate limit hits > 10/hour
+  - **Dashboard Updates**: Add provider dimension to monitoring dashboards
+  - **Comparison Metrics**: Track OpenAI vs Anthropic performance
+  - **Audit Trail**: Ensure all provider operations logged
+- **Risks (4/10)**: Insufficient monitoring leading to undetected issues
+  - *Mitigation*:
+    - Comprehensive telemetry coverage
+    - Alert testing before production
+    - Runbook for common issues
+    - On-call training
+- **Confidence (7/10)**: Telemetry patterns established
+- **Validation**:
+  - Alert testing with synthetic failures
+  - Dashboard review with ops team
+  - Runbook walkthrough
+  - Verify all metrics captured
+- **Rollback**: Restore original alert thresholds
+
+### 11. Phased Rollout & Validation
+- **Tasks**
+  - **Phase 1: Internal Testing** (Week 1)
+    - Enable for internal org only
+    - Monitor telemetry closely
+    - Validate data accuracy
+  - **Phase 2: Staged Enablement** (Week 2)
+    - Enable for 10% of orgs (allowlist)
+    - Compare metrics against OpenAI baseline
+    - Gather user feedback
+  - **Phase 3: Gradual Rollout** (Weeks 3-4)
+    - Increase to 25%, 50%, 75%
+    - Monitor for issues at each stage
+    - Adjust based on performance
+  - **Phase 4: Full Deployment** (Week 5)
+    - Enable for all orgs
+    - Continue monitoring for 2 weeks
+    - Document lessons learned
+- **Risks (5/10)**: Undetected issues scaling to production
+  - *Mitigation*:
+    - Gradual rollout with monitoring
+    - Rollback capability at each phase
+    - User feedback channels
+    - Post-rollout audits
+- **Confidence (6/10)**: Phased approach reduces risk
+- **Validation**:
+  - Telemetry review at each phase
+  - User feedback collection
+  - Data accuracy spot checks
+  - Performance monitoring
+- **Rollback**: Reduce rollout percentage or disable entirely
+
+### 12. Documentation & Operationalization
+- **Tasks**
+  - **Architecture Docs**: Update `docs/architecture/`
+    - Provider abstraction design
+    - Multi-provider data flow
+    - Schema changes and rationale
+  - **Operations Runbooks**: Create `docs/operations/`
+    - Anthropic ingestion troubleshooting
+    - Provider-specific error codes
+    - Rollback procedures
+    - Cost reconciliation process
+  - **API Documentation**: Update OpenAPI spec for provider dimension
+  - **Memory Bank Updates**: 
+    - `memorybank/progress.md`: Record completion
+    - `memorybank/systemPatterns.md`: Document provider abstraction pattern
+    - `memorybank/techContext.md`: Add Anthropic integration details
+  - **Developer Onboarding**: Create guide for adding future providers
+  - **Security Documentation**: Multi-provider credential management
+- **Risks (4/10)**: Incomplete documentation hindering maintenance
+  - *Mitigation*:
+    - Tie docs to definition-of-done
+    - Peer review all documentation
+    - Schedule quarterly doc reviews
+    - Link docs from code comments
+- **Confidence (8/10)**: Documentation process well-established
+- **Validation**:
+  - Doc review by team
+  - Walkthrough with new team member
+  - Verify all links functional
+  - Audit artefacts complete
+- **Rollback**: N/A (documentation step)
+
+## Enhanced Validation Pipeline
+
+### Pre-Implementation Validation
+1. **Architecture Review**: Provider abstraction design approved by team
+2. **Schema Review**: Database changes reviewed by DBA/senior engineers
+3. **Security Review**: Multi-provider credential management approved
+4. **Legal Review**: Anthropic data handling requirements confirmed
+
+### Implementation Validation
+1. **Code Review**: All PRs reviewed by 2+ engineers
+2. **Unit Tests**: >80% coverage for new code
+3. **Integration Tests**: Full flow tested with both providers
+4. **Performance Tests**: No degradation to OpenAI ingestion
+5. **Security Tests**: Credential handling validated
+
+### Pre-Production Validation
+1. **Staging Dry-Run**: Full ingestion with production-like data
+2. **Telemetry Diff**: Compare Anthropic vs OpenAI metrics
+3. **Data Integrity**: Verify dedupe and cost calculations
+4. **UI/UX Review**: Accessibility and visual regression checks
+5. **Rollback Rehearsal**: Practice full rollback in staging
+
+### Production Validation
+1. **Phased Rollout**: Gradual enablement with monitoring
+2. **Telemetry Monitoring**: Real-time metrics tracking
+3. **User Feedback**: Collect and address user reports
+4. **Data Audits**: Periodic accuracy spot checks
+5. **Post-Rollout Review**: Document lessons learned
+
+## Enhanced Rollback Protocol
+
+### Immediate Rollback (< 5 minutes)
+1. **Disable Feature Flag**: Set `ENABLE_ANTHROPIC_USAGE=false`
+2. **Stop Cron Jobs**: Halt Anthropic ingestion scheduler
+3. **Verify OpenAI**: Confirm OpenAI ingestion continues normally
+4. **Alert Team**: Notify stakeholders of rollback
+
+### Data Cleanup (< 30 minutes)
+1. **Assess Corruption**: Determine if Anthropic data is corrupted
+2. **Purge if Needed**: Delete Anthropic rows via provider filter
+   ```sql
+   DELETE FROM usage_events WHERE provider = 'anthropic' AND created_at > '2025-10-09';
+   ```
+3. **Verify Integrity**: Run integrity checks on remaining data
+4. **Backup**: Create snapshot before any destructive operations
+
+### Schema Rollback (< 1 hour)
+1. **Revert Migration**: Execute rollback migration script
+2. **Drop New Columns**: Remove provider-specific columns if needed
+3. **Restore Indexes**: Revert to original index structure
+4. **Validate Queries**: Ensure all analytics queries work
+
+### Full System Rollback (< 2 hours)
+1. **Revert Code**: Roll back to previous deployment
+2. **Remove Dependencies**: Uninstall Anthropic SDK if needed
+3. **Restore Config**: Revert environment variables
+4. **Clear Caches**: Flush any provider-related caches
+5. **Validate System**: Full system health check
+
+### Post-Rollback
+1. **Root Cause Analysis**: Document what went wrong
+2. **Update Plan**: Revise integration plan based on learnings
+3. **Communicate**: Inform stakeholders of status and next steps
+4. **Log Actions**: Record all rollback steps in `audit/rollback-log.md`
+
+## Security Considerations
+
+### Credential Management
+- **Separate Keys**: Distinct API keys for OpenAI and Anthropic
+- **Key Rotation**: Documented rotation procedures for both providers
+- **Access Control**: Limit key access to authorized services only
+- **Audit Logging**: Log all API key usage and access attempts
+- **Encryption**: Store keys encrypted at rest and in transit
+
+### Data Privacy
+- **Provider Attribution**: Clearly track which provider processed each request
+- **Data Retention**: Apply consistent retention policies across providers
+- **Compliance**: Ensure Anthropic integration meets GDPR/CCPA requirements
+- **Audit Trail**: Maintain complete audit trail for compliance
+
+### Threat Model
+- **API Key Compromise**: Procedures for immediate key revocation
+- **Data Leakage**: Prevent cross-provider data contamination
+- **Rate Limit Abuse**: Monitor for unusual API usage patterns
+- **Cost Overruns**: Alert on unexpected cost spikes per provider
+
+## Cost Management
+
+### Budget Allocation
+- **Per-Provider Budgets**: Set separate cost limits for OpenAI and Anthropic
+- **Alert Thresholds**: Notify when approaching budget limits
+- **Cost Attribution**: Track costs by provider, org, project, model
+- **Reconciliation**: Monthly cost reconciliation against provider invoices
+
+### Cost Optimization
+- **Rate Limiting**: Prevent runaway API costs
+- **Caching**: Leverage Anthropic's prompt caching where applicable
+- **Batch Processing**: Optimize API calls for cost efficiency
+- **Usage Monitoring**: Track cost per request and identify optimization opportunities
+
+## Success Metrics
+
+### Technical Metrics
+- **Ingestion Latency**: Anthropic < 5min, OpenAI unchanged
+- **Error Rate**: Both providers < 1%
+- **Data Accuracy**: 100% match with provider dashboards
+- **Uptime**: 99.9% availability for both providers
+
+### Business Metrics
+- **Cost Visibility**: 100% of costs attributed correctly
+- **User Adoption**: Track usage of provider filtering features
+- **Data Completeness**: No gaps in usage/cost reporting
+- **Time to Resolution**: Incident response times meet SLAs
+
+### User Experience Metrics
+- **Dashboard Load Time**: < 2s with provider filtering
+- **Accessibility Score**: Maintain WCAG 2.1 AA compliance
+- **User Satisfaction**: Collect feedback on multi-provider UX
+- **Feature Usage**: Track provider filter adoption rates
+
+## API Version Management
+
+### Version Tracking
+- **Current Versions**: 
+  - OpenAI Admin API: (document current version)
+  - Anthropic API: `2023-06-01`
+- **Version Registry**: Maintain `src/lib/providers/api-versions.ts`
+- **Deprecation Monitoring**: Subscribe to provider API changelogs
+- **Migration Planning**: 6-month lead time for version updates
+
+### Version Update Process
+1. **Notification**: Provider announces new API version
+2. **Assessment**: Evaluate breaking changes and new features
+3. **Planning**: Create migration plan with timeline
+4. **Testing**: Validate new version in sandbox
+5. **Rollout**: Gradual migration with monitoring
+6. **Deprecation**: Remove old version support after grace period
+
+## Rate Limiting Coordination
+
+### Rate Limit Strategy
+- **Per-Provider Limits**: Track separately for OpenAI and Anthropic
+- **Budget Allocation**: Distribute API call budget across providers
+- **Priority System**: OpenAI first (established), then Anthropic (new)
+- **Backoff Coordination**: Ensure one provider's backoff doesn't block the other
+
+### Rate Limit Handling
+```typescript
+interface RateLimitConfig {
+  provider: string;
+  requestsPerMinute: number;
+  dailyQuota: number;
+  burstAllowance: number;
+  backoffStrategy: 'exponential' | 'linear';
+}
+```
+
+### Monitoring & Alerts
+- **Rate Limit Hits**: Alert when approaching limits
+- **Quota Consumption**: Track daily quota usage per provider
+- **Throttling Events**: Log all rate limit backoffs
+- **Cost Impact**: Monitor cost implications of rate limiting
+
+## Audit Trail Enhancements
+
+### Provider-Specific Audit Logs
+- **API Calls**: Log all provider API interactions
+  ```typescript
+  {
+    timestamp: Date,
+    provider: 'openai' | 'anthropic',
+    endpoint: string,
+    method: string,
+    statusCode: number,
+    latency: number,
+    requestId: string,
+    organizationId: string
+  }
+  ```
+- **Data Operations**: Track all provider data writes
+- **Feature Flag Changes**: Log all flag state changes
+- **Error Events**: Comprehensive error logging per provider
+
+### Cross-Provider Aggregation Audits
+- **Cost Reconciliation**: Monthly audit of cross-provider costs
+- **Data Consistency**: Verify data integrity across providers
+- **Performance Comparison**: Track relative performance metrics
+- **Usage Patterns**: Analyze usage distribution across providers
+
+### Compliance & Retention
+- **Audit Log Retention**: 90 days minimum, 1 year recommended
+- **Compliance Reports**: Generate provider-specific compliance reports
+- **Data Lineage**: Track data origin and transformations
+- **Access Logs**: Monitor who accessed provider data
+
+## Future Considerations
+
+### Additional Provider Support
+The provider abstraction layer is designed to support future LLM providers:
+- **Google Vertex AI**: Gemini models
+- **Cohere**: Command models
+- **Local Models**: Ollama, LM Studio
+- **Azure OpenAI**: Separate from OpenAI direct
+
+### Scaling Considerations
+- **Multi-Region**: Support for provider-specific regional endpoints
+- **Caching Layer**: Implement caching for frequently accessed data
+- **Data Archival**: Long-term storage strategy for historical data
+- **Performance Optimization**: Continuous monitoring and optimization
+
+### Feature Enhancements
+- **Real-Time Ingestion**: Move from batch to streaming ingestion
+- **Predictive Analytics**: Forecast usage and costs
+- **Anomaly Detection**: Automated detection of unusual patterns
+- **Cost Optimization**: Automated recommendations for cost savings
+
+## Appendices
+
+### Appendix A: Provider Comparison Matrix
+
+| Feature | OpenAI | Anthropic | Notes |
+|---------|--------|-----------|-------|
+| Token Types | input, output | input, output, cached, cache_creation, cache_read | Anthropic has prompt caching |
+| Cost Reporting | Aggregated | Detailed per message | Different granularity |
+| Rate Limits | (document) | (document) | Verify with providers |
+| Pagination | Cursor-based | Cursor-based | Similar approach |
+| Authentication | Bearer token | x-api-key header | Different auth methods |
+| API Versioning | Date-based | Date-based | Both use YYYY-MM-DD |
+
+### Appendix B: Glossary
+
+- **Provider Abstraction**: Design pattern enabling multiple LLM providers
+- **Dedupe Key**: Unique identifier preventing duplicate data ingestion
+- **Cost Normalization**: Converting provider-specific costs to common format
+- **Feature Flag**: Toggle for enabling/disabling features
+- **Telemetry**: Metrics and logs for monitoring system health
+- **Rollback**: Process of reverting changes to previous state
+
+### Appendix C: Reference Links
+
+- **Anthropic API Docs**: https://docs.anthropic.com/
+- **OpenAI Admin API**: (internal docs)
+- **Provider Abstraction Pattern**: `docs/architecture/provider-abstraction.md`
+- **Feature Flag Guide**: `docs/operations/feature-flags.md`
+- **Rollback Procedures**: `audit/rollback-procedures/`
+
+### Appendix D: Change Log
+
+| Date | Version | Changes | Author |
+|------|---------|---------|--------|
+| 2025-10-09 | 1.0 | Initial plan | Team |
+| 2025-10-09 | 2.0 | Comprehensive revision addressing architectural gaps | AI Review |
+
+**Key Changes in v2.0:**
+- Added provider abstraction layer (Step 1.5)
+- Split Step 3 into 3a, 3b, 3c for clarity
+- Added Steps 5-6 for deduplication and cost normalization
+- Enhanced validation pipeline and rollback procedures
+- Added security, cost management, and API version sections
+- Comprehensive appendices for reference
+
+---
+
+## Next Steps
+
+1. **Review & Approval**: Circulate revised plan to stakeholders
+2. **Architecture Review**: Schedule deep-dive on provider abstraction
+3. **Resource Allocation**: Assign team members to implementation steps
+4. **Timeline Planning**: Create detailed project timeline with milestones
+5. **Risk Assessment**: Conduct formal risk review with stakeholders
+6. **Kickoff Meeting**: Launch implementation with full team alignment
+
+**Estimated Timeline**: 8-10 weeks for full implementation
+**Team Size**: 2-3 engineers + 1 QA + stakeholder reviews
+**Risk Level**: Medium-High (architectural changes, data integrity critical)
+
+---
+
+_This plan is a living document and should be updated as implementation progresses and new information becomes available._
