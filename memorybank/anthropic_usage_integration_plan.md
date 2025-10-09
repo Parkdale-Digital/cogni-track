@@ -244,22 +244,25 @@ Choose between denormalization vs. normalization for provider attribution:
 
 | Criteria | Denormalization (provider column) | Normalization (join via key_id) | Recommendation |
 |----------|-----------------------------------|----------------------------------|----------------|
-| **Query Performance** | ✅ Faster (no join required) | ⚠️ Slower (requires join) | Denormalize if analytics queries are frequent |
-| **Data Consistency** | ⚠️ Requires sync mechanism | ✅ Single source of truth | Normalize if consistency is critical |
-| **Storage Overhead** | ⚠️ Additional column (~20 bytes/row) | ✅ No additional storage | Denormalize (minimal overhead) |
-| **Maintenance** | ⚠️ Triggers/backfills needed | ✅ No sync required | Normalize if team is small |
-| **Analytics Complexity** | ✅ Simple WHERE provider = 'X' | ⚠️ JOIN provider_keys required | Denormalize for simpler queries |
-| **Future Flexibility** | ✅ Easy to add provider-specific columns | ⚠️ Schema changes affect joins | Denormalize for extensibility |
+| **Query Performance** | ✅ Faster (no join required) | ⚠️ Additional JOIN | If analytics query volume >100/day, consider denormalization |
+| **Data Consistency** | ⚠️ Requires sync mechanism | ✅ Single source of truth | Favor normalization when data integrity is priority |
+| **Storage Overhead** | ⚠️ Additional column (~20 bytes/row) | ✅ No additional storage | Normalization avoids extra storage |
+| **Maintenance** | ⚠️ Triggers/backfills needed | ✅ No sync required | Normalization lowers ongoing maintenance |
+| **Analytics Complexity** | ✅ Simple `WHERE provider = 'X'` | ⚠️ Requires JOIN | Denormalization simplifies ad-hoc analytics |
+| **Future Flexibility** | ✅ Easy to add provider-specific columns | ⚠️ Schema changes affect joins | Normalization keeps schema minimal |
 
 **Decision Criteria:**
 - **Choose Denormalization if:** Analytics queries are frequent (>100/day), query performance is critical, team can maintain sync mechanisms
 - **Choose Normalization if:** Data consistency is paramount, storage is constrained, team prefers minimal schema changes
 
-**Recommended Approach:** Denormalization with trigger-based sync for this use case, given high analytics query volume and need for provider-specific columns (cached tokens).
+**Recommended Approach:** Start with **Option A – Normalized** to minimize schema risk; revisit denormalization only if the ADR and performance benchmarks show joins as a bottleneck.
 
 - **Tasks**
   - **Schema Analysis**: Evaluate `usage_events` table for multi-provider support, comparing options for deriving provider via `key_id` join versus denormalizing into the table.
-  - **Provider Attribution Decision**: If denormalization is required for performance, introduce a `provider` column with triggers/backfills to keep it in sync with `provider_keys.provider`. Otherwise document why the join remains sufficient and skip the column.
+  - **Provider Attribution Decision (ADR REQUIRED)**:
+    - Draft an ADR capturing trade-offs (query count, index size, trigger complexity) and obtain approval before starting Step 3b implementation.
+    - **Option A – Normalized (Recommended Default):** Continue deriving provider via join on `provider_keys`. Avoid storing `provider` column; keep schema lean and rely on existing FK guarantees.
+    - **Option B – Denormalized (If Approved):** Introduce nullable `provider` column with trigger/backfill to keep it synchronized with `provider_keys.provider` for read-heavy workloads.
   - **Token Schema Enhancement**: Determine whether Anthropic `cache_creation_input_tokens` / `cache_read_input_tokens` can map to existing `inputCachedTokens` / related fields; if not, design new nullable columns with clear migration and backfill steps.
 
 #### Token Field Mapping Table *(v2.2 Addition)*
@@ -292,24 +295,24 @@ COMMENT ON COLUMN usage_events.cache_read_tokens IS
 ```
 
   - **Composite Dedupe Keys**: Update unique constraints to include provider using existing columns
-    ```sql
-    -- Example: extend current index to guard Anthropic + OpenAI windows
-    CREATE UNIQUE INDEX usage_admin_bucket_provider_idx
-    ON usage_events(
-      key_id,
-      provider,
-      model,
-      window_start,
-      window_end,
-      COALESCE(project_id, ''),
-      COALESCE(openai_api_key_id, ''),
-      COALESCE(openai_user_id, ''),
-      COALESCE(service_tier, ''),
-      COALESCE(batch::text, '')
-    )
-    WHERE window_start IS NOT NULL;
-    ```
-  - **Existing Index Alignment**: Document migration steps for renaming/reshaping `usage_admin_bucket_idx` so OpenAI-only paths retain the same dedupe semantics during backfill.
+    - **Option A – Normalized Provider (Recommended):** Keep constraint on `key_id` plus metadata (no `provider` column) and rely on join in application layer. Example:
+      ```sql
+      CREATE UNIQUE INDEX usage_admin_bucket_idx_v2
+      ON usage_events(
+        key_id,
+        model,
+        window_start,
+        window_end,
+        COALESCE(project_id, ''),
+        COALESCE(openai_api_key_id, ''),
+        COALESCE(openai_user_id, ''),
+        COALESCE(service_tier, ''),
+        COALESCE(batch::text, '')
+      )
+      WHERE window_start IS NOT NULL;
+      ```
+    - **Option B – Denormalized Provider:** (only if ADR approves) Add `provider` column and create `usage_admin_bucket_provider_idx` with provider in the key. Include trigger validation to keep provider in sync with `provider_keys`.
+  - **Existing Index Alignment**: Document migration/rollback steps for renaming the original `usage_admin_bucket_idx`, ensuring OpenAI dedupe semantics remain intact during backfill regardless of selected option.
   - **Cost Normalization Table**: Consider separate `normalized_costs` table for cross-provider aggregation
   - **Migration Script**: Create `drizzle/0004_multi_provider_support.sql`
   - **Backfill Strategy**: Plan for adding provider='openai' to existing rows
@@ -449,11 +452,12 @@ function buildDedupeKey(event: NormalizedUsageEvent): string {
     //                (projectId | apiKeyId | userId | serviceTier | batch flag)
     // Anthropic-specific extensions leverage bucket metadata (e.g., workspaceId, serviceTier)
     ```
-  - **Update Dedupe Logic**: Modify `src/lib/usage-fetcher.ts` (and future provider modules) to build the composite key consistently across providers
-  - **Database Constraints**: Align unique indexes with the composite key so both OpenAI and Anthropic windows dedupe identically
+  - **Update Dedupe Logic**: Modify `src/lib/usage-fetcher.ts` (and provider modules) to build the composite key consistently across providers. When provider is not stored on the row (Option A), fetch it via join before generating the key.
+  - **Database Constraints**: Align unique indexes with the composite key. For Option A, constraint omits provider column; for Option B, include provider and ensure trigger keeps it synchronized.
+  - **ADR Alignment**: Dedupe implementation must follow the provider attribution ADR outcome recorded in Step 3b.
   - **Conflict Resolution**: Define behavior for duplicate detection across providers
   - **Audit Trail**: Log all dedupe decisions with provider context
-  - **Testing**: Create fixtures with intentional duplicates for both providers
+- **Testing**: Create fixtures with intentional duplicates for both providers and execute the dedupe validation checklist (see below)
 - **Risks (8/10)**: Incorrect dedupe logic causing data loss or duplication
   - *Mitigation*:
     - Extensive unit tests with edge cases
@@ -470,6 +474,23 @@ function buildDedupeKey(event: NormalizedUsageEvent): string {
   - Revert dedupe logic changes
   - Purge Anthropic data if corruption detected
   - Restore original OpenAI-only dedupe
+
+#### Dedupe Validation Checklist *(v2.3 Addition)*
+1. **Unit Coverage**
+   - [ ] Tests for composite key generation per provider (OpenAI, Anthropic)
+   - [ ] Negative tests ensuring mismatched metadata produces distinct keys
+2. **Database Constraint Verification**
+   - [ ] Apply migration on staging snapshot
+   - [ ] Confirm constraint enforces uniqueness with mixed-provider sample data
+3. **Fixture Replay**
+   - [ ] Replay OpenAI fixtures (baseline) and confirm no new constraint violations
+   - [ ] Replay Anthropic fixtures (including duplicates) and verify dedupe logs
+4. **Join Path Validation (Option A)**
+   - [ ] Ensure provider join executed in ingestion path before dedupe comparison
+   - [ ] Run telemetry diff confirming provider attribution maintained
+5. **Rollback Readiness**
+   - [ ] Document SQL to revert index changes
+   - [ ] Validate rollback script on staging snapshot
 
 ### 6. Implement Cost Normalization
 - **Tasks**
