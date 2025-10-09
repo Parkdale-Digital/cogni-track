@@ -239,19 +239,28 @@ interface ProviderCallLog {
 
 ### 3b. Design Schema Extensions & Migration Strategy *(NEW - Split from Step 3)*
 - **Tasks**
-  - **Schema Analysis**: Evaluate `usage_events` table for multi-provider support
-  - **Add Provider Column**: `provider VARCHAR(20) NOT NULL DEFAULT 'openai'`
-  - **Token Schema Enhancement**: Support Anthropic's cached token types
+  - **Schema Analysis**: Evaluate `usage_events` table for multi-provider support, comparing options for deriving provider via `key_id` join versus denormalizing into the table.
+  - **Provider Attribution Decision**: If denormalization is required for performance, introduce a `provider` column with triggers/backfills to keep it in sync with `provider_keys.provider`. Otherwise document why the join remains sufficient and skip the column.
+  - **Token Schema Enhancement**: Determine whether Anthropic `cache_creation_input_tokens` / `cache_read_input_tokens` can map to existing `inputCachedTokens` / related fields; if not, design new nullable columns with clear migration and backfill steps.
+  - **Composite Dedupe Keys**: Update unique constraints to include provider using existing columns
     ```sql
-    ALTER TABLE usage_events ADD COLUMN cache_creation_tokens INTEGER;
-    ALTER TABLE usage_events ADD COLUMN cache_read_tokens INTEGER;
+    -- Example: extend current index to guard Anthropic + OpenAI windows
+    CREATE UNIQUE INDEX usage_admin_bucket_provider_idx
+    ON usage_events(
+      key_id,
+      provider,
+      model,
+      window_start,
+      window_end,
+      COALESCE(project_id, ''),
+      COALESCE(openai_api_key_id, ''),
+      COALESCE(openai_user_id, ''),
+      COALESCE(service_tier, ''),
+      COALESCE(batch::text, '')
+    )
+    WHERE window_start IS NOT NULL;
     ```
-  - **Composite Dedupe Keys**: Update unique constraints to include provider
-    ```sql
-    CREATE UNIQUE INDEX usage_events_provider_dedupe 
-    ON usage_events(provider, organization_id, event_id, timestamp);
-    ```
-  - **Existing Index Alignment**: Amend `usage_admin_bucket_idx` (and any companion indexes) to include the provider dimension and document the migration so OpenAI rows retain coverage during backfill.
+  - **Existing Index Alignment**: Document migration steps for renaming/reshaping `usage_admin_bucket_idx` so OpenAI-only paths retain the same dedupe semantics during backfill.
   - **Cost Normalization Table**: Consider separate `normalized_costs` table for cross-provider aggregation
   - **Migration Script**: Create `drizzle/0004_multi_provider_support.sql`
   - **Backfill Strategy**: Plan for adding provider='openai' to existing rows
@@ -262,6 +271,7 @@ interface ProviderCallLog {
     - Create view layer for backward compatibility
     - Comprehensive query impact analysis
     - Staged rollout with feature flags
+    - If denormalizing provider, implement trigger/backfill scripts and validation queries to keep the column consistent with `provider_keys`.
 - **Confidence (5/10)**: High-impact changes requiring extensive validation
 - **Validation**:
   - Schema diff review with DBA/senior engineers
@@ -317,6 +327,7 @@ interface ProviderCallLog {
     - Pagination handling (cursor-based)
     - Rate limiting (respect `retry-after` headers)
     - Token normalization (map Anthropic fields to common schema)
+    - Token field mapping plan: translate Anthropic cached token metrics (`cache_creation_input_tokens`, `cache_read_input_tokens`) to the decided storage columns and document rationale in code comments/tests.
   - **Cost Fetching**: Implement cost report endpoint integration
   - **Error Handling**: Map Anthropic error codes to standard error types
   - **Retry Logic**: Exponential backoff with jitter
@@ -347,13 +358,14 @@ interface ProviderCallLog {
 
 ### 5. Implement Deduplication Strategy
 - **Tasks**
-  - **Define Dedupe Keys**: Provider-aware composite keys
+  - **Define Dedupe Keys**: Provider-aware composite keys based on existing normalized fields
     ```typescript
-    // OpenAI: provider + org_id + aggregation_timestamp + snapshot_id
-    // Anthropic: provider + org_id + message_id + timestamp
+    // Canonical key: provider + keyId + model + windowStart + windowEnd +
+    //                (projectId | apiKeyId | userId | serviceTier | batch flag)
+    // Anthropic-specific extensions leverage bucket metadata (e.g., workspaceId, serviceTier)
     ```
-  - **Update Dedupe Logic**: Modify `src/lib/usage-fetcher.ts` to use provider-specific keys
-  - **Database Constraints**: Ensure unique indexes include provider dimension
+  - **Update Dedupe Logic**: Modify `src/lib/usage-fetcher.ts` (and future provider modules) to build the composite key consistently across providers
+  - **Database Constraints**: Align unique indexes with the composite key so both OpenAI and Anthropic windows dedupe identically
   - **Conflict Resolution**: Define behavior for duplicate detection across providers
   - **Audit Trail**: Log all dedupe decisions with provider context
   - **Testing**: Create fixtures with intentional duplicates for both providers
@@ -463,6 +475,7 @@ interface ProviderCallLog {
   - **Export Controls**: Update CSV/JSON exports to include provider column
   - **Accessibility**: Ensure provider indicators have proper ARIA labels
   - **Visual Regression Testing**: Capture screenshots for comparison
+  - **Type Updates**: Refine `UsageEventWithMetadata` (and related types) to avoid hard-coded `openai*` fields—introduce provider-agnostic metadata structures while preserving backwards compatibility for OpenAI-specific attributes.
 - **Risks (6/10)**: UI regressions or misleading combined metrics
   - *Mitigation*:
     - Feature-gate UI changes
