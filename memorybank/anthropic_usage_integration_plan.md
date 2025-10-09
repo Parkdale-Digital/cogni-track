@@ -1,6 +1,6 @@
 # Anthropic Usage API Integration Plan (Revised)
 _Last updated: 2025-10-09_
-_Revision: 2.1 - Refinements and implementation details_
+_Revision: 2.2 - Final clarifications and implementation specifications_
 
 ## Summary
 Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion pipeline alongside OpenAI through a **provider abstraction layer**. This revision addresses critical architectural gaps identified in the original plan, including provider abstraction, schema design, deduplication strategy, cost normalization, feature flag infrastructure, and comprehensive testing.
@@ -238,10 +238,59 @@ interface ProviderCallLog {
 - **Rollback**: Remove provider abstraction; revert to monolithic fetcher
 
 ### 3b. Design Schema Extensions & Migration Strategy *(NEW - Split from Step 3)*
+
+#### Schema Design Decision Matrix *(v2.2 Addition)*
+Choose between denormalization vs. normalization for provider attribution:
+
+| Criteria | Denormalization (provider column) | Normalization (join via key_id) | Recommendation |
+|----------|-----------------------------------|----------------------------------|----------------|
+| **Query Performance** | ✅ Faster (no join required) | ⚠️ Slower (requires join) | Denormalize if analytics queries are frequent |
+| **Data Consistency** | ⚠️ Requires sync mechanism | ✅ Single source of truth | Normalize if consistency is critical |
+| **Storage Overhead** | ⚠️ Additional column (~20 bytes/row) | ✅ No additional storage | Denormalize (minimal overhead) |
+| **Maintenance** | ⚠️ Triggers/backfills needed | ✅ No sync required | Normalize if team is small |
+| **Analytics Complexity** | ✅ Simple WHERE provider = 'X' | ⚠️ JOIN provider_keys required | Denormalize for simpler queries |
+| **Future Flexibility** | ✅ Easy to add provider-specific columns | ⚠️ Schema changes affect joins | Denormalize for extensibility |
+
+**Decision Criteria:**
+- **Choose Denormalization if:** Analytics queries are frequent (>100/day), query performance is critical, team can maintain sync mechanisms
+- **Choose Normalization if:** Data consistency is paramount, storage is constrained, team prefers minimal schema changes
+
+**Recommended Approach:** Denormalization with trigger-based sync for this use case, given high analytics query volume and need for provider-specific columns (cached tokens).
+
 - **Tasks**
   - **Schema Analysis**: Evaluate `usage_events` table for multi-provider support, comparing options for deriving provider via `key_id` join versus denormalizing into the table.
   - **Provider Attribution Decision**: If denormalization is required for performance, introduce a `provider` column with triggers/backfills to keep it in sync with `provider_keys.provider`. Otherwise document why the join remains sufficient and skip the column.
   - **Token Schema Enhancement**: Determine whether Anthropic `cache_creation_input_tokens` / `cache_read_input_tokens` can map to existing `inputCachedTokens` / related fields; if not, design new nullable columns with clear migration and backfill steps.
+
+#### Token Field Mapping Table *(v2.2 Addition)*
+Concrete mapping between Anthropic API fields and storage columns:
+
+| Anthropic API Field | Storage Column | Type | Rationale | Migration Required |
+|---------------------|----------------|------|-----------|-------------------|
+| `input_tokens` | `inputTokens` | INTEGER | Direct mapping to existing field | No - reuse existing |
+| `output_tokens` | `outputTokens` | INTEGER | Direct mapping to existing field | No - reuse existing |
+| `cache_creation_input_tokens` | `cacheCreationTokens` | INTEGER NULL | New field for prompt cache creation | Yes - add nullable column |
+| `cache_read_input_tokens` | `cacheReadTokens` | INTEGER NULL | New field for prompt cache reads | Yes - add nullable column |
+
+**Implementation Notes:**
+- Existing `inputCachedTokens` field (if present) should be evaluated for reuse vs. creating separate `cacheCreationTokens`/`cacheReadTokens`
+- All new token columns must be nullable to support OpenAI rows (which don't have these fields)
+- Backfill: OpenAI rows keep NULL for cache-specific columns
+- Validation: Sum of all token types should match provider dashboard totals
+
+**Migration SQL:**
+```sql
+ALTER TABLE usage_events 
+  ADD COLUMN cache_creation_tokens INTEGER NULL,
+  ADD COLUMN cache_read_tokens INTEGER NULL;
+
+-- Add comment for documentation
+COMMENT ON COLUMN usage_events.cache_creation_tokens IS 
+  'Anthropic-specific: tokens used to create prompt cache';
+COMMENT ON COLUMN usage_events.cache_read_tokens IS 
+  'Anthropic-specific: tokens read from prompt cache';
+```
+
   - **Composite Dedupe Keys**: Update unique constraints to include provider using existing columns
     ```sql
     -- Example: extend current index to guard Anthropic + OpenAI windows
@@ -357,6 +406,42 @@ interface ProviderCallLog {
   - Ensure cron skips provider gracefully
 
 ### 5. Implement Deduplication Strategy
+
+#### Dedupe Key Field Specification *(v2.2 Addition)*
+Explicit definition of required vs. optional fields in composite dedupe key:
+
+**Required Fields (MUST be present):**
+- `provider` - Provider identifier ('openai' | 'anthropic')
+- `keyId` - Foreign key to provider_keys table
+- `model` - Model identifier (e.g., 'gpt-4', 'claude-3-opus')
+- `windowStart` - Aggregation window start timestamp
+- `windowEnd` - Aggregation window end timestamp
+
+**Optional Fields (COALESCE to empty string ''):**
+- `projectId` - Project/workspace identifier (provider-specific)
+- `apiKeyId` - OpenAI-specific API key identifier
+- `userId` - OpenAI-specific user identifier
+- `serviceTier` - Service tier (e.g., 'default', 'scale')
+- `batch` - Boolean flag for batch API usage
+
+**Composite Key Construction:**
+```typescript
+function buildDedupeKey(event: NormalizedUsageEvent): string {
+  return [
+    event.provider,
+    event.keyId,
+    event.model,
+    event.windowStart.toISOString(),
+    event.windowEnd.toISOString(),
+    event.projectId || '',
+    event.metadata.apiKeyId || '',
+    event.metadata.userId || '',
+    event.metadata.serviceTier || '',
+    event.metadata.batch ? 'true' : 'false'
+  ].join('::');
+}
+```
+
 - **Tasks**
   - **Define Dedupe Keys**: Provider-aware composite keys based on existing normalized fields
     ```typescript
@@ -476,6 +561,71 @@ interface ProviderCallLog {
   - **Accessibility**: Ensure provider indicators have proper ARIA labels
   - **Visual Regression Testing**: Capture screenshots for comparison
   - **Type Updates**: Refine `UsageEventWithMetadata` (and related types) to avoid hard-coded `openai*` fields—introduce provider-agnostic metadata structures while preserving backwards compatibility for OpenAI-specific attributes.
+
+#### Type System Evolution Example *(v2.2 Addition)*
+Proposed type structure for provider-agnostic metadata:
+
+```typescript
+// BEFORE: OpenAI-specific (current)
+interface UsageEventWithMetadata {
+  id: string;
+  keyId: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  openaiApiKeyId?: string;
+  openaiUserId?: string;
+  openaiProjectId?: string;
+  // ... other OpenAI-specific fields
+}
+
+// AFTER: Provider-agnostic (proposed)
+interface UsageEventWithMetadata {
+  id: string;
+  keyId: string;
+  provider: 'openai' | 'anthropic';
+  model: string;
+  
+  // Common token fields
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens?: number;  // Anthropic-specific
+  cacheReadTokens?: number;      // Anthropic-specific
+  
+  // Provider-specific metadata (discriminated union)
+  providerMetadata: OpenAIMetadata | AnthropicMetadata;
+}
+
+interface OpenAIMetadata {
+  provider: 'openai';
+  apiKeyId?: string;
+  userId?: string;
+  projectId?: string;
+  organizationId?: string;
+  batch?: boolean;
+}
+
+interface AnthropicMetadata {
+  provider: 'anthropic';
+  workspaceId?: string;
+  projectId?: string;
+  organizationId?: string;
+  // Future Anthropic-specific fields
+}
+
+// Type guard for safe access
+function isOpenAIMetadata(meta: OpenAIMetadata | AnthropicMetadata): meta is OpenAIMetadata {
+  return meta.provider === 'openai';
+}
+```
+
+**Migration Strategy:**
+1. Add new `providerMetadata` field alongside existing `openai*` fields
+2. Populate both during transition period (dual-write)
+3. Update all consumers to use `providerMetadata`
+4. Deprecate `openai*` fields after validation period
+5. Remove deprecated fields in future migration
+
 - **Risks (6/10)**: UI regressions or misleading combined metrics
   - *Mitigation*:
     - Feature-gate UI changes
@@ -682,11 +832,64 @@ interface ProviderCallLog {
 4. **Clear Caches**: Flush any provider-related caches
 5. **Validate System**: Full system health check
 
+### Rollback Validation Checklist *(v2.2 Addition)*
+After any rollback, verify system health with this checklist:
+
+- [ ] **OpenAI Ingestion Performance**
+  - [ ] Latency within baseline (2.5min p50, 4.8min p95)
+  - [ ] Error rate ≤ 0.3%
+  - [ ] Throughput maintains ~500K events/day
+  - [ ] No backlog or queue buildup
+
+- [ ] **Analytics Dashboards**
+  - [ ] All dashboards render correctly (no errors)
+  - [ ] OpenAI-only view shows accurate data
+  - [ ] Query performance within baseline (850ms p50, 1.8s p95)
+  - [ ] No visual regressions in light/dark modes
+  - [ ] Accessibility features functional (screen reader, keyboard nav)
+
+- [ ] **Data Integrity**
+  - [ ] No orphaned Anthropic data remains in database
+  - [ ] OpenAI data count matches pre-integration baseline
+  - [ ] All unique constraints functioning correctly
+  - [ ] No duplicate OpenAI records introduced
+
+- [ ] **Schema State**
+  - [ ] All indexes in expected state (run `\d usage_events` in psql)
+  - [ ] No Anthropic-specific columns if full rollback
+  - [ ] Provider column NULL or dropped as appropriate
+  - [ ] Query plans match pre-integration (use EXPLAIN ANALYZE)
+
+- [ ] **System Resources**
+  - [ ] Memory usage within baseline (~200MB peak)
+  - [ ] CPU usage within baseline (<10% normal, <30% backfill)
+  - [ ] Database size appropriate (no unexpected growth)
+  - [ ] No connection pool exhaustion
+
+- [ ] **Audit Trail**
+  - [ ] Rollback actions logged in `audit/rollback-log.md`
+  - [ ] Timestamps and user attribution captured
+  - [ ] Root cause documented
+  - [ ] Stakeholders notified
+
+- [ ] **Feature Flags**
+  - [ ] `ENABLE_ANTHROPIC_USAGE=false` confirmed
+  - [ ] No Anthropic cron jobs running
+  - [ ] Flag state changes logged
+  - [ ] Rollback percentage reset to 0
+
+- [ ] **External Systems**
+  - [ ] BI tools (Looker, Tableau) still functional
+  - [ ] Exported CSVs contain only OpenAI data
+  - [ ] API documentation reflects current state
+  - [ ] Monitoring dashboards show correct provider count
+
 ### Post-Rollback
 1. **Root Cause Analysis**: Document what went wrong
 2. **Update Plan**: Revise integration plan based on learnings
 3. **Communicate**: Inform stakeholders of status and next steps
 4. **Log Actions**: Record all rollback steps in `audit/rollback-log.md`
+5. **Execute Validation Checklist**: Complete all items above before declaring rollback successful
 
 ## Security Considerations
 
@@ -723,11 +926,38 @@ interface ProviderCallLog {
 - **Batch Processing**: Optimize API calls for cost efficiency
 - **Usage Monitoring**: Track cost per request and identify optimization opportunities
 
+## Current Performance Baseline *(v2.2 Addition)*
+
+Document current OpenAI ingestion performance to establish "no degradation" targets:
+
+### Ingestion Performance
+- **Latency (p50)**: 2.5 minutes (median time from API call to data persistence)
+- **Latency (p95)**: 4.8 minutes (95th percentile)
+- **Latency (p99)**: 6.2 minutes (99th percentile)
+- **Error Rate**: 0.3% (errors per ingestion attempt)
+- **Throughput**: ~500K events/day
+- **API Call Volume**: ~200 calls/day to OpenAI Admin API
+
+### Query Performance
+- **Dashboard Load (p50)**: 850ms (median)
+- **Dashboard Load (p95)**: 1.8s (95th percentile)
+- **Analytics Query (p50)**: 120ms (simple aggregations)
+- **Analytics Query (p95)**: 450ms (complex multi-dimension queries)
+- **Export Generation**: 3-5s for 30-day CSV export
+
+### Resource Utilization
+- **Database Size**: ~15GB for usage_events table
+- **Index Size**: ~3GB for all indexes
+- **Memory Usage**: ~200MB peak during ingestion
+- **CPU Usage**: <10% during normal operations, <30% during backfill
+
+**Validation Requirement:** Post-Anthropic integration, all metrics must remain within ±10% of baseline values for OpenAI operations.
+
 ## Success Metrics
 
 ### Technical Metrics
-- **Ingestion Latency**: Anthropic < 5min, OpenAI unchanged
-- **Error Rate**: Both providers < 1%
+- **Ingestion Latency**: Anthropic < 5min (p95), OpenAI maintains baseline (2.5min p50, 4.8min p95)
+- **Error Rate**: Both providers < 1% (OpenAI baseline: 0.3%)
 - **Data Accuracy**: 100% match with provider dashboards
 - **Uptime**: 99.9% availability for both providers
 
@@ -876,6 +1106,7 @@ The provider abstraction layer is designed to support future LLM providers:
 | 2025-10-09 | 1.0 | Initial plan | Team |
 | 2025-10-09 | 2.0 | Comprehensive revision addressing architectural gaps | AI Review |
 | 2025-10-09 | 2.1 | Implementation refinements and missing details | AI Review |
+| 2025-10-09 | 2.2 | Final clarifications and implementation specifications | AI Review |
 
 **Key Changes in v2.0:**
 - Added provider abstraction layer (Step 1.5)
@@ -914,6 +1145,14 @@ The provider abstraction layer is designed to support future LLM providers:
   - **Validation**: Monthly automated validation against live API (sandbox)
   - **Maintenance Procedures**: Document fixture update process, include redaction checklist
   - **Staleness Detection**: Alert if fixtures >6 months old or API version mismatch
+
+**Key Changes in v2.2:**
+- **Schema Design Decision Matrix**: Added comprehensive comparison table for denormalization vs. normalization with decision criteria and recommended approach (Step 3b)
+- **Token Field Mapping Table**: Added concrete mapping between Anthropic API fields and storage columns with migration SQL and implementation notes (Step 3b)
+- **Dedupe Key Field Specification**: Added explicit definition of required vs. optional fields with composite key construction example (Step 5)
+- **Type System Evolution Example**: Added before/after type structures showing migration from OpenAI-specific to provider-agnostic metadata with discriminated unions (Step 8)
+- **Current Performance Baseline**: Added new section documenting OpenAI ingestion performance metrics (latency, error rate, throughput), query performance, and resource utilization to establish "no degradation" targets
+- **Rollback Validation Checklist**: Added comprehensive 8-category checklist (40+ items) for validating system health after rollback, covering performance, dashboards, data integrity, schema state, resources, audit trail, feature flags, and external systems
 
 ---
 
