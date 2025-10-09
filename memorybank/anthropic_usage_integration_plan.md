@@ -151,6 +151,7 @@ Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion p
     CREATE UNIQUE INDEX usage_events_provider_dedupe 
     ON usage_events(provider, organization_id, event_id, timestamp);
     ```
+  - **Existing Index Alignment**: Amend `usage_admin_bucket_idx` (and any companion indexes) to include the provider dimension and document the migration so OpenAI rows retain coverage during backfill.
   - **Cost Normalization Table**: Consider separate `normalized_costs` table for cross-provider aggregation
   - **Migration Script**: Create `drizzle/0004_multi_provider_support.sql`
   - **Backfill Strategy**: Plan for adding provider='openai' to existing rows
@@ -223,6 +224,7 @@ Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion p
     - `anthropic.api.latency`
     - `anthropic.api.rate_limit_hits`
     - `anthropic.api.errors`
+  - **Fixture Capture**: Record sanitized Anthropic usage/cost responses for deterministic tests and store in `audit/anthropic-fixtures/` with a redaction checklist.
   - **Dry-Run Mode**: Support fetch-only mode without persistence (for testing)
 - **Risks (6/10)**: Unhandled rate-limit semantics or payload variance causing ingestion stalls
   - *Mitigation*: 
@@ -293,6 +295,7 @@ Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion p
     ```
   - **OpenAI Cost Mapping**: Extract from existing cost reports
   - **Anthropic Cost Mapping**: Parse Anthropic cost report format
+  - **Anthropic Cost Conversion**: Convert `cost_cents` string values to decimal USD matching existing `costEstimate` precision; add regression assertions against sample data.
   - **Currency Normalization**: Ensure consistent USD representation
   - **Aggregation Logic**: Support cross-provider cost summation
   - **Cost Attribution**: Track costs by provider, org, project, model
@@ -318,6 +321,7 @@ Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion p
   - **Update Ingestion Coordinator**: Modify to iterate over enabled providers
   - **Provider-Aware Persistence**: Ensure all DB writes include provider metadata
   - **Cron Job Updates**: Modify `scripts/usage-backfill.ts` for multi-provider support
+  - **Code Path Audit**: Refactor ingestion queries and helpers (`src/lib/usage-fetcher.ts`, `scripts/usage-backfill.ts`, telemetry tooling) to replace hard-coded `'openai'` filters with provider-aware logic.
   - **Scheduling Strategy**: 
     - Sequential ingestion (OpenAI first, then Anthropic) to isolate failures
     - Or parallel with separate error handling per provider
@@ -425,6 +429,7 @@ Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion p
     - Anthropic rate limit hits > 10/hour
   - **Dashboard Updates**: Add provider dimension to monitoring dashboards
   - **Comparison Metrics**: Track OpenAI vs Anthropic performance
+  - **Tooling Updates**: Extend `scripts/usage-telemetry-diff.ts` and monitoring runbooks to handle provider-aware comparisons and Anthropic-specific rate-limit semantics.
   - **Audit Trail**: Ensure all provider operations logged
 - **Risks (4/10)**: Insufficient monitoring leading to undetected issues
   - *Mitigation*:
@@ -480,6 +485,7 @@ Integrate Anthropic's Usage & Cost Admin API into the existing usage ingestion p
     - Schema changes and rationale
   - **Operations Runbooks**: Create `docs/operations/`
     - Anthropic ingestion troubleshooting
+    - Anthropic rate-limit (429) handling and retry guidance
     - Provider-specific error codes
     - Rollback procedures
     - Cost reconciliation process
