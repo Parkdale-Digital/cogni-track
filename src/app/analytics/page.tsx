@@ -80,10 +80,10 @@ export default async function AnalyticsPage() {
   const hasEvents = events.length > 0;
 
   return (
-    <main className="container space-y-10 py-10 lg:py-12">
+    <div className="container space-y-10 py-10 lg:py-12" role="region" aria-labelledby="analytics-page-title">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Usage analytics</h1>
+          <h1 id="analytics-page-title" className="text-3xl font-semibold tracking-tight">Usage analytics</h1>
           <p className="max-w-2xl text-muted-foreground">
             Monitor spend anomalies, track token trends, and export usage snapshots without leaving your workspace.
           </p>
@@ -116,7 +116,10 @@ export default async function AnalyticsPage() {
       ) : (
         <section
           aria-labelledby="analytics-empty-state-heading"
-          className="rounded-lg border border-dashed border-muted-foreground/30 bg-card p-10 text-center shadow-sm"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="rounded-lg border border-muted-foreground/30 bg-muted/20 p-10 text-center shadow-sm"
         >
           <div className="space-y-4">
             <div className="space-y-2">
@@ -144,6 +147,6 @@ export default async function AnalyticsPage() {
           </div>
         </section>
       )}
-    </main>
+    </div>
   );
 }

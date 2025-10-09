@@ -7,6 +7,16 @@
 
 # Daily Usage Progress Log
 
+## 2025-10-09
+- Analytics UX Phase 1 implemented: SkipLink component added and wired in layout with main content region focusable via id="main-content".
+- Analytics page uses role="region" with aria-labelledby on page title; sections maintain aria-labelledby patterns.
+- AdvancedFilters: focus moves to panel on expand; aria-live polite status for apply/clear; date range validation with aria-invalid and inline error messaging; Apply disabled on invalid.
+- UsageSummary: numeric emphasis uses text-primary; empty state uses role="status" with token-based surfaces.
+- UsageChart: cost line uses accent token; tooltip surfaces tokenized; negative values clamped to 0.
+- NavMenu: active state matches nested routes via pathname.startsWith.
+- Standardized empty/filtered states across dashboard components with role="status", aria-live, and token surfaces (FilterableAnalyticsDashboard, Analytics empty state, DataAggregation, ExportControls).
+- Light/dark theming aligned to tokens; contrast sanity checked in UI tokens.
+
 ## 2025-10-08
 - Exposed daily window metadata end-to-end: `/api/usage` now returns window start/end + OpenAI identifiers, analytics dashboard gained project/API key/service tier filters, and exports include the new columns for contract coverage.
 - Added compatibility fallback for environments missing the new `usage_events` columns so `/api/usage` and the analytics dashboard gracefully return legacy rows instead of failing at query time.

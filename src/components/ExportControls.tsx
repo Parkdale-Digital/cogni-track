@@ -66,9 +66,14 @@ export default function ExportControls({ events, className }: ExportControlsProp
       </Button>
 
       {events.length === 0 && (
-        <p className="self-center text-sm text-muted-foreground">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="self-center rounded-md border border-muted-foreground/30 bg-muted/20 px-3 py-2 text-sm text-muted-foreground"
+        >
           No data available for export
-        </p>
+        </div>
       )}
     </div>
   );

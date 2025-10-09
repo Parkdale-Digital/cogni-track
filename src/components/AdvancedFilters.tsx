@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useId } from 'react';
+import React, { useState, useEffect, useMemo, useId, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -43,6 +43,7 @@ export default function AdvancedFilters({
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const panelId = useId();
   const headingId = `${panelId}-heading`;
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setDraftFilters(filters);
@@ -70,6 +71,15 @@ export default function AdvancedFilters({
     return () => window.clearTimeout(timer);
   }, [isExpanded, lastUpdatedAt]);
 
+  useEffect(() => {
+    if (isExpanded) {
+      // Move focus to the panel region when it expands
+      setTimeout(() => {
+        panelRef.current?.focus();
+      }, 0);
+    }
+  }, [isExpanded]);
+
   const hasPendingChanges = useMemo(() => {
     const datesMatch =
       draftFilters.dateRange.start === filters.dateRange.start &&
@@ -92,6 +102,18 @@ export default function AdvancedFilters({
 
     return !(datesMatch && providersMatch && modelsMatch && projectsMatch && apiKeysMatch && serviceTiersMatch);
   }, [draftFilters, filters]);
+
+  const dateError = useMemo(() => {
+    const { start, end } = draftFilters.dateRange;
+    if (start && end) {
+      const s = new Date(start);
+      const e = new Date(end);
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && s > e) {
+        return 'End date must be on or after start date.';
+      }
+    }
+    return null;
+  }, [draftFilters.dateRange]);
 
   const handleDateChange = (field: 'start' | 'end', value: string) => {
     setDraftFilters(prev => ({
@@ -254,6 +276,8 @@ export default function AdvancedFilters({
         role="region"
         aria-labelledby={headingId}
         hidden={!isExpanded}
+        ref={panelRef}
+        tabIndex={-1}
         className="border-t border-border px-4 py-5"
       >
         {/* Date Range */}
@@ -266,6 +290,8 @@ export default function AdvancedFilters({
                 type="date"
                 value={draftFilters.dateRange.start}
                 onChange={(e) => handleDateChange('start', e.target.value)}
+                aria-invalid={Boolean(dateError)}
+                aria-describedby={dateError ? `${panelId}-date-error` : undefined}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -275,11 +301,18 @@ export default function AdvancedFilters({
                 type="date"
                 value={draftFilters.dateRange.end}
                 onChange={(e) => handleDateChange('end', e.target.value)}
+                aria-invalid={Boolean(dateError)}
+                aria-describedby={dateError ? `${panelId}-date-error` : undefined}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           </div>
         </div>
+        {dateError && (
+          <p id={`${panelId}-date-error`} className="mt-2 text-sm text-destructive" role="alert">
+            {dateError}
+          </p>
+        )}
 
         {/* Providers */}
         {availableProviders.length > 0 && (
@@ -445,7 +478,7 @@ export default function AdvancedFilters({
               <button
                 type="button"
                 onClick={applyFilters}
-                disabled={!hasPendingChanges}
+                disabled={!hasPendingChanges || Boolean(dateError)}
                 className={cn(
                   'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50',
                   hasPendingChanges ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-muted text-muted-foreground'
@@ -453,7 +486,7 @@ export default function AdvancedFilters({
               >
                 Apply filters
               </button>
-              <div className="min-h-[1.25rem] text-xs text-muted-foreground">
+              <div className="min-h-[1.25rem] text-xs text-muted-foreground" role="status" aria-live="polite" aria-atomic="true">
                 {actionStatus === 'applied' && <span>Filters updated ✓</span>}
                 {actionStatus === 'cleared' && <span>Filters cleared</span>}
                 {actionStatus === 'idle' && !hasPendingChanges && activeFiltersCount > 0 && (

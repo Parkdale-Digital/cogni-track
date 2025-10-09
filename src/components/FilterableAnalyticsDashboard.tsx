@@ -209,7 +209,7 @@ export default function FilterableAnalyticsDashboard({
             <UsageChart data={chartData.cost} type="cost" />
           </div>
         ) : hasFiltersApplied ? (
-          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-card p-8 text-center shadow-sm">
+          <div role="status" aria-live="polite" aria-atomic="true" className="rounded-lg border border-primary/40 bg-primary/10 p-8 text-center shadow-sm text-primary">
             <p className="text-sm font-medium text-foreground">No data matches your current filters</p>
             <p className="mt-2 text-sm text-muted-foreground">
               Expand the date range or clear provider/model chips to see usage trends again.
@@ -222,7 +222,7 @@ export default function FilterableAnalyticsDashboard({
             </button>
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-card p-8 text-center shadow-sm">
+          <div role="status" aria-live="polite" aria-atomic="true" className="rounded-lg border border-muted-foreground/30 bg-muted/20 p-8 text-center shadow-sm">
             <p className="text-sm font-medium text-foreground">Usage charts will appear once we have activity</p>
             <p className="mt-2 text-sm text-muted-foreground">
               Refresh usage or add API keys to start collecting trend data.

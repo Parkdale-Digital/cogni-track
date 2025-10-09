@@ -179,6 +179,18 @@ export async function GET() {
     return NextResponse.json<ProviderKeyListResponse>({ keys: keysWithMasked });
   } catch (error) {
     console.error('Error fetching provider keys:', error);
+    const anyErr = error as any;
+    const message: string = anyErr?.message ?? "";
+    const code: string | undefined = anyErr?.code;
+
+    // DB-off fallback: if local DB is not running, gracefully return empty list
+    if (code === 'ECONNREFUSED' || message.includes('ECONNREFUSED')) {
+      return NextResponse.json<ProviderKeyListResponse>(
+        { keys: [] },
+        { status: 200, headers: { 'x-db-off': 'true' } }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to fetch provider keys' },
       { status: 500 }

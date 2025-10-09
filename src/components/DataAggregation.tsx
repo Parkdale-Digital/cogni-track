@@ -231,7 +231,7 @@ export default function DataAggregation({ events, className }: DataAggregationPr
           )}
         </div>
       ) : (
-        <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+        <div role="status" aria-live="polite" aria-atomic="true" className="rounded-lg border border-muted-foreground/30 bg-muted/20 p-8 text-center shadow-sm text-sm text-muted-foreground">
           No usage data available for the selected timeframe.
         </div>
       )}

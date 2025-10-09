@@ -59,17 +59,17 @@ export default function UsageSummary({ events }: UsageSummaryProps) {
     {
       label: 'Total cost',
       value: `$${totalCost.toFixed(4)}`,
-      accent: 'text-foreground'
+      accent: 'text-primary'
     },
     {
       label: 'Cached input tokens',
       value: formatNumber(totalCachedInputTokens),
-      accent: 'text-foreground'
+      accent: 'text-primary'
     },
     {
       label: 'Windowed events',
       value: `${windowedEventCount.toLocaleString()} of ${totalEvents.toLocaleString()}`,
-      accent: 'text-foreground'
+      accent: 'text-primary'
     }
   ];
 
@@ -182,7 +182,12 @@ export default function UsageSummary({ events }: UsageSummaryProps) {
       )}
 
       {totalEvents === 0 && (
-        <div className="mt-8 rounded-md border border-dashed border-muted-foreground/30 bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="mt-8 rounded-md border border-dashed border-muted-foreground/30 bg-muted/20 p-6 text-center text-sm text-muted-foreground"
+        >
           No usage data matches the current filters.
         </div>
       )}
