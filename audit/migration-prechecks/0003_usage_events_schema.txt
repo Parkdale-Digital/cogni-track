@@ -1,5 +1,3 @@
-2025-10-08 \d usage_events (staging)
-
                                                 Table "public.usage_events"
           Column           |            Type             | Collation | Nullable |                 Default                  
 ---------------------------+-----------------------------+-----------+----------+------------------------------------------
@@ -34,3 +32,9 @@ Indexes:
     "usage_admin_bucket_idx" UNIQUE, btree (key_id, model, window_start, window_end, COALESCE(project_id, ''::text), COALESCE(openai_api_key_id, ''::text), COALESCE(openai_user_id, ''::text), COALESCE(service_tier, ''::text), COALESCE(batch, false)) WHERE window_start IS NOT NULL
 Foreign-key constraints:
     "usage_events_key_id_provider_keys_id_fk" FOREIGN KEY (key_id) REFERENCES provider_keys(id) ON DELETE CASCADE
+
+       indexname        
+------------------------
+ usage_admin_bucket_idx
+(1 row)
+

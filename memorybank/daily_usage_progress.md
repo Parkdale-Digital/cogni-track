@@ -8,6 +8,10 @@
 # Daily Usage Progress Log
 
 ## 2025-10-08
+- Exposed daily window metadata end-to-end: `/api/usage` now returns window start/end + OpenAI identifiers, analytics dashboard gained project/API key/service tier filters, and exports include the new columns for contract coverage.
+- Added compatibility fallback for environments missing the new `usage_events` columns so `/api/usage` and the analytics dashboard gracefully return legacy rows instead of failing at query time.
+- Applied staging migration `drizzle/0003_usage_event_windows.sql` (`pnpm drizzle-kit push`, log archived under `audit/migration-prechecks/0003_push_20251009T001627Z.log`), introspected schema snapshot to `audit/migration-prechecks/post-window-snapshot.json`, and captured `usage_events` table/index details. Schema guard dry-run (`scripts/usage-backfill.ts`) still fails with Drizzle `usage_admin_bucket_idx` expression columns resolving to `undefined`, so manual dedupe fallback needs recheck before cron rehearsal.
+- Disabled constraint-based upsert by default (`ENABLE_USAGE_ADMIN_CONSTRAINT_UPSERT=false`) to avoid Drizzle `undefined` expression targets, reran verify-schema backfill (`audit/migration-prechecks/0003_verify_schema_backfill.log`) with manual dedupe succeeding, and regenerated telemetry diff (`audit/telemetry-audit/latest-staging.json`) showing zero missing rows post-migration.
 - Enabled `usage_admin_bucket_idx` consumption by tolerating Drizzle SQL expressions, so constraint-based upsert works again (`src/lib/usage-fetcher.ts`).
 - Hardened admin pagination sanitization to reject whitespace tokens and restored manual fallback telemetry (`tests/usageFetcherSecurity.test.ts`, `tests/usageFetcherConstraintFallback.test.ts`).
 - Updated provider key API responses to share typed payloads and revalidated with `npx tsx tests/runAllTests.ts`.

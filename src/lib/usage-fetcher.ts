@@ -2,7 +2,6 @@ import { decrypt } from './encryption';
 import { getDb } from './database';
 import { providerKeys, usageEvents } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import type { IndexColumn } from 'drizzle-orm/pg-core/indexes';
 
 type OpenAIUsageMode = 'standard' | 'admin';
 
@@ -186,6 +185,8 @@ const ADMIN_THROTTLE_TIMEOUT_MS = Math.max(
 );
 const ENABLE_DAILY_USAGE_WINDOWS =
   (process.env.ENABLE_DAILY_USAGE_WINDOWS ?? 'false').toLowerCase() === 'true';
+const ENABLE_USAGE_ADMIN_CONSTRAINT_UPSERT =
+  (process.env.ENABLE_USAGE_ADMIN_CONSTRAINT_UPSERT ?? 'false').toLowerCase() === 'true';
 
 const REQUIRED_USAGE_WINDOW_COLUMNS = [
   'window_start',
@@ -263,126 +264,21 @@ const CONSTRAINT_MISSING_SQLSTATE_CODES = new Set(['42P10', '42704', '42703']);
 
 type UsageEventInsert = typeof usageEvents.$inferInsert;
 
-const DRIZZLE_EXTRA_CONFIG_BUILDER = Symbol.for('drizzle:ExtraConfigBuilder');
-// WARNING: This references a Drizzle internal symbol. 
-// This code is tightly coupled to Drizzle version X.Y.Z. 
-// If you upgrade Drizzle, verify that 'drizzle:ExtraConfigColumns' is still valid.
-const DRIZZLE_EXTRA_CONFIG_COLUMNS = Symbol.for('drizzle:ExtraConfigColumns');
+const usageAdminBucketConstraint = ENABLE_DAILY_USAGE_WINDOWS && ENABLE_USAGE_ADMIN_CONSTRAINT_UPSERT
+  ? ([
+      usageEvents.keyId,
+      usageEvents.model,
+      usageEvents.windowStart,
+      usageEvents.windowEnd,
+      sql`COALESCE(${usageEvents.projectId}, '')`,
+      sql`COALESCE(${usageEvents.openaiApiKeyId}, '')`,
+      sql`COALESCE(${usageEvents.openaiUserId}, '')`,
+      sql`COALESCE(${usageEvents.serviceTier}, '')`,
+      sql`COALESCE(${usageEvents.batch}, false)`,
+    ] as const)
+  : undefined;
 
-function getIndexColumnName(entry: IndexColumn | undefined): string | undefined {
-  if (!entry || typeof entry !== 'object') {
-    return undefined;
-  }
-
-  const name = (entry as { name?: unknown }).name;
-  if (typeof name === 'string' && name.length > 0) {
-    return name;
-  }
-
-  const column = (entry as { column?: { name?: unknown } }).column;
-  if (column && typeof column === 'object') {
-    const columnName = (column as { name?: unknown }).name;
-    if (typeof columnName === 'string' && columnName.length > 0) {
-      return columnName;
-    }
-  }
-
-  return undefined;
-}
-
-function isSqlIndexExpression(entry: IndexColumn | undefined): boolean {
-  if (!entry || typeof entry !== 'object') {
-    return false;
-  }
-  const candidate = entry as { queryChunks?: unknown };
-  if (!Array.isArray(candidate.queryChunks)) {
-    return false;
-  }
-  return candidate.queryChunks.every((chunk) =>
-    typeof chunk !== 'string' || !chunk.includes('undefined')
-  );
-}
-
-function isUsableIndexColumn(entry: IndexColumn | undefined): entry is IndexColumn {
-  if (!entry || typeof entry !== 'object') {
-    return false;
-  }
-
-  const name = getIndexColumnName(entry);
-  if (typeof name === 'string') {
-    return name.length > 0 && name !== 'undefined';
-  }
-
-  return isSqlIndexExpression(entry);
-}
-
-function resolveUsageAdminBucketConstraint(): IndexColumn[] | undefined {
-  const usageEventSymbols = usageEvents as unknown as Record<symbol, unknown>;
-  const extraConfigBuilder = usageEventSymbols[DRIZZLE_EXTRA_CONFIG_BUILDER];
-  if (typeof extraConfigBuilder !== 'function') {
-    return undefined;
-  }
-
-  const extraConfigColumns = usageEventSymbols[DRIZZLE_EXTRA_CONFIG_COLUMNS];
-  try {
-    const extraConfig = (extraConfigBuilder as (columns: unknown) => unknown)(extraConfigColumns);
-    const maybeBuilder =
-      extraConfig && typeof extraConfig === 'object'
-        ? Array.isArray(extraConfig)
-          ? extraConfig.find(
-              (entry): entry is { config?: { name?: string; columns?: IndexColumn[] } } & {
-                build?: (table: typeof usageEvents) => { config?: { columns?: IndexColumn[] } };
-              } =>
-                !!entry &&
-                typeof entry === 'object' &&
-                'config' in entry &&
-                (entry as { config?: { name?: string } }).config?.name === USAGE_ADMIN_BUCKET_CONSTRAINT_NAME
-            )
-          : (extraConfig as Record<string, unknown>)[
-              'usageAdminBucketIdx'
-            ]
-        : undefined;
-
-    if (!maybeBuilder || typeof maybeBuilder !== 'object') {
-      return undefined;
-    }
-
-    if (typeof (maybeBuilder as { build?: unknown }).build === 'function') {
-      const built = (maybeBuilder as {
-        build: (table: typeof usageEvents) => { config?: { columns?: IndexColumn[] } };
-      }).build(usageEvents);
-      return built?.config?.columns as IndexColumn[] | undefined;
-    }
-
-    const columns = (maybeBuilder as { config?: { columns?: IndexColumn[] } }).config?.columns;
-    if (!Array.isArray(columns)) {
-      return undefined;
-    }
-    if (!Array.isArray(columns) || columns.length === 0) {
-      return undefined;
-    }
-    if (!columns.every((entry) => isUsableIndexColumn(entry))) {
-      return undefined;
-    }
-    if (process.env.OPENAI_USAGE_DEBUG === '1') {
-      console.log(
-        '[usage-fetcher] usage_admin_bucket_idx columns',
-        columns.map((entry) => getIndexColumnName(entry) ?? '[expression]')
-      );
-    }
-    return columns as IndexColumn[];
-  } catch (error) {
-    console.warn('[usage-fetcher] Failed to resolve usage_admin_bucket_idx metadata', {
-      error: error instanceof Error ? error.message : error,
-    });
-    return undefined;
-  }
-}
-
-const usageAdminBucketConstraint = resolveUsageAdminBucketConstraint();
-const usageAdminBucketConstraintUsable = Array.isArray(usageAdminBucketConstraint)
-  ? usageAdminBucketConstraint.length > 0 && usageAdminBucketConstraint.every((entry) => isUsableIndexColumn(entry))
-  : false;
+const usageAdminBucketConstraintUsable = Array.isArray(usageAdminBucketConstraint);
 
 let loggedMissingUsageConstraint = false;
 

@@ -4,16 +4,9 @@ import React, { useId, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 import { cn } from '@/lib/utils';
+import { UsageEventWithMetadata } from '@/types/usage';
 
-interface UsageEvent {
-  id: number;
-  model: string;
-  tokensIn: number | null;
-  tokensOut: number | null;
-  costEstimate: string | null;
-  timestamp: string;
-  provider: string;
-}
+const getEventDate = (event: UsageEventWithMetadata) => new Date(event.windowStart ?? event.timestamp);
 
 interface AggregatedData {
   period: string;
@@ -25,7 +18,7 @@ interface AggregatedData {
 }
 
 interface DataAggregationProps {
-  events: UsageEvent[];
+  events: UsageEventWithMetadata[];
   className?: string;
 }
 
@@ -37,7 +30,7 @@ export default function DataAggregation({ events, className }: DataAggregationPr
     const groups: Record<string, AggregatedData> = {};
 
     events.forEach(event => {
-      const date = new Date(event.timestamp);
+      const date = getEventDate(event);
       let periodKey: string;
 
       if (groupBy === 'weekly') {

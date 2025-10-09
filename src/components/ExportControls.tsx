@@ -4,19 +4,10 @@ import React, { useState } from 'react';
 import { exportUsageToCSV, exportUsageSummaryToCSV } from '../lib/csv-export';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-interface UsageEvent {
-  id: number;
-  model: string;
-  tokensIn: number | null;
-  tokensOut: number | null;
-  costEstimate: string | null;
-  timestamp: string;
-  provider: string;
-}
+import { UsageEventWithMetadata } from '@/types/usage';
 
 interface ExportControlsProps {
-  events: UsageEvent[];
+  events: UsageEventWithMetadata[];
   className?: string;
 }
 
