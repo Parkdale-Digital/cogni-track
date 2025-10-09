@@ -47,3 +47,5 @@
 2025-10-08 – Logged context gap `GAP-2025-10-07-DAILY-USAGE-PARITY`, scheduled quarterly memory bank sweep (first business day each quarter) to reconcile `memorybank/progress.md` with `/audit` artefacts, and noted pending validation for 2025-10-10 diff rerun.
 2025-10-08 – Memory review after running admin grouping backfill, cleaning legacy blanks, bundling diff script, and confirming `latest-staging.json` reports zero missing/mismatched windows; parity gap closed and context log updated.
 2025-10-08 – Recorded verify-schema backfill check and staging migration push; schema dump stored under `audit/migration-prechecks/` to confirm window columns/index present.
+2025-10-09 – Logged anthropic usage documentation gap (GAP-2025-10-09-ANTHROPIC-DOCS) after unsuccessful Context7 lookup; awaiting official API reference before proceeding with integration plan.
+2025-10-09 – Retrieved Anthropic usage API docs via Context7 (`/llmstxt/anthropic_llms_txt`); closed GAP-2025-10-09-ANTHROPIC-DOCS and captured endpoints for usage and cost reports.
