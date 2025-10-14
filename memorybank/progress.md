@@ -68,3 +68,4 @@
 2025-10-08 – Purged legacy blank metadata rows with SQL script (`tmp/cleanup_usage_events.sql`, DELETE 16) and tightened telemetry diff to skip records lacking project/api key/user metadata.
 2025-10-08 – Updated telemetry diff key to ignore `service_tier` and reran staging regression; missing counts remain at 46 (CSV) / 32 (DB) indicating OpenAI API still omits specific windows despite enriched metadata.
 Next: Clean legacy `usage_events` rows lacking metadata, evaluate strategies for service tier parity (API limitation vs derived mapping), and rerun staging diff to verify gaps close.
+2025-10-09 – Completed Step 2 audit for Anthropic integration (coupling inventory, schema review, compatibility matrix) with artefact `audit/provider-coupling-analysis.md`.

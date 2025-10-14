@@ -49,3 +49,4 @@
 2025-10-08 – Recorded verify-schema backfill check and staging migration push; schema dump stored under `audit/migration-prechecks/` to confirm window columns/index present.
 2025-10-09 – Logged anthropic usage documentation gap (GAP-2025-10-09-ANTHROPIC-DOCS) after unsuccessful Context7 lookup; awaiting official API reference before proceeding with integration plan.
 2025-10-09 – Retrieved Anthropic usage API docs via Context7 (`/llmstxt/anthropic_llms_txt`); closed GAP-2025-10-09-ANTHROPIC-DOCS and captured endpoints for usage and cost reports.
+2025-10-09 – Memory review after auditing OpenAI coupling points and drafting `audit/provider-coupling-analysis.md` for Anthropic integration Step 2.
