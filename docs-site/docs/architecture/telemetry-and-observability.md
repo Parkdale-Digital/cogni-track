@@ -46,10 +46,10 @@ scripts.
   sanitized error payloads.
 - **Telemetry diffs** generated via
   [`scripts/usage-telemetry-diff.ts`](../../../scripts/usage-telemetry-diff.ts)
-  compare ingested data against provider exports. Outputs live under
-  [`audit/telemetry-audit/`](../../../audit/telemetry-audit/).
-- **Cron rehearsal notes** in [`audit/cron-dry-run/`](../../../audit/cron-dry-run/)
-  capture run metadata, operator observations, and rollback confirmations.
+  compare ingested data against provider exports. Outputs live under the
+  `audit/telemetry-audit/` directory.
+- **Cron rehearsal notes** in the `audit/cron-dry-run/` directory capture run
+  metadata, operator observations, and rollback confirmations.
 
 ## Alerting & Dashboards
 

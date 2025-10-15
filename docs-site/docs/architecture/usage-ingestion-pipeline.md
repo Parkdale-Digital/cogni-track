@@ -57,9 +57,8 @@ implementation details.
 ### 5. Telemetry & Exports
 
 Each run emits structured telemetry consumed by dashboards, APIs, and CSV
-exports. Operators review metrics and parity diffs documented in
-[`audit/telemetry-audit/`](../../../audit/telemetry-audit/) before enabling cron
-jobs.
+exports. Operators review metrics and parity diffs documented in the
+`audit/telemetry-audit/` directory before enabling cron jobs.
 
 ## Implementation Details
 
@@ -68,9 +67,8 @@ jobs.
 - **Backfill tooling**: [`scripts/usage-backfill.ts`](../../../scripts/usage-backfill.ts)
   and related CLI workflows replay historical windows with chunked processing
   and telemetry logging.
-- **Fixtures**: Golden fixtures under
-  [`audit/golden-fixtures/`](../../../audit/golden-fixtures/) validate
-  deterministic ingestion outputs and support contract tests.
+- **Fixtures**: Golden fixtures under the `audit/golden-fixtures/` directory
+  validate deterministic ingestion outputs and support contract tests.
 
 ## Configuration
 
