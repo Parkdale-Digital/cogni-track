@@ -355,7 +355,7 @@ Set `OPENAI_ORGANIZATION=org-abc123` and `OPENAI_PROJECT=proj-xyz789` in your `.
 ```
 
 ### ✅ Good: Conceptual with Examples
-```markdown
+````markdown
 ## Admin Mode Configuration
 Admin mode requires organization and project identifiers from your provider:
 
@@ -366,7 +366,7 @@ OPENAI_PROJECT=proj-your-project-id
 ```
 
 See [Environment Configuration](./environment-configuration.md) for complete setup instructions.
-```
+````
 
 ---
 

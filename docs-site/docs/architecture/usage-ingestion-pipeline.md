@@ -28,7 +28,8 @@ flowchart LR
 ### 1. Trigger & Authentication
 
 Vercel Cron (or Inngest) triggers the ingestion worker, which decrypts provider
-keys using AES-GCM helpers in [`src/lib/encryption.ts`](../../../src/lib/encryption.ts).
+keys using AES-GCM helpers in
+[`src/lib/encryption.ts`](https://github.com/Parkdale-Digital/cogni-track/blob/main/src/lib/encryption.ts).
 Feature flags determine whether admin mode ingestion is enabled per key.
 
 ### 2. Mode Resolution
@@ -51,8 +52,8 @@ identifiers.
 Normalized events persist to Postgres via Drizzle ORM. Inserts rely on the
 composite dedupe index (`usage_admin_bucket_idx`) to guarantee idempotency,
 falling back to an update when necessary. See
-[`src/lib/usage-fetcher.ts`](../../../src/lib/usage-fetcher.ts) for
-implementation details.
+[`src/lib/usage-fetcher.ts`](https://github.com/Parkdale-Digital/cogni-track/blob/main/src/lib/usage-fetcher.ts)
+for implementation details.
 
 ### 5. Telemetry & Exports
 
@@ -64,7 +65,7 @@ exports. Operators review metrics and parity diffs documented in the
 
 - **Provider abstraction**: Providers implement a shared interface that handles
   fetching, normalization, cost mapping, and dedupe key construction.
-- **Backfill tooling**: [`scripts/usage-backfill.ts`](../../../scripts/usage-backfill.ts)
+- **Backfill tooling**: [`scripts/usage-backfill.ts`](https://github.com/Parkdale-Digital/cogni-track/blob/main/scripts/usage-backfill.ts)
   and related CLI workflows replay historical windows with chunked processing
   and telemetry logging.
 - **Fixtures**: Golden fixtures under the `audit/golden-fixtures/` directory

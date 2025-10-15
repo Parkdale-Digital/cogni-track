@@ -31,7 +31,7 @@ time-bound secrets.
 - **`CLERK_SECRET_KEY`**: Server-side Clerk API access. Rotate through the Clerk
   dashboard and avoid logging the value.
 - **`ENCRYPTION_KEY`**: 32-byte base64 key used by
-  [`src/lib/encryption.ts`](../../../src/lib/encryption.ts) for AES-GCM
+  [`src/lib/encryption.ts`](https://github.com/Parkdale-Digital/cogni-track/blob/main/src/lib/encryption.ts) for AES-GCM
   operations. Required for encrypting provider credentials; rotate if leaked.
 - **`ENCRYPTION_MASTER_KEY`**: Master key for envelope encryption workflows.
   Store alongside `ENCRYPTION_KEY` in a managed secret vault.

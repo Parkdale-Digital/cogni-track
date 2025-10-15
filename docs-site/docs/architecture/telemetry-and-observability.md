@@ -37,15 +37,15 @@ flowchart TB
   during monthly reconciliation.
 
 Metric implementations originate from `IngestionTelemetry` in
-[`src/lib/usage-fetcher.ts`](../../../src/lib/usage-fetcher.ts) and supporting
-scripts.
+[`src/lib/usage-fetcher.ts`](https://github.com/Parkdale-Digital/cogni-track/blob/main/src/lib/usage-fetcher.ts)
+and supporting scripts.
 
 ## Logs & Audit Artefacts
 
 - **Structured logs** include key identifiers, window ranges, retry counts, and
   sanitized error payloads.
 - **Telemetry diffs** generated via
-  [`scripts/usage-telemetry-diff.ts`](../../../scripts/usage-telemetry-diff.ts)
+  [`scripts/usage-telemetry-diff.ts`](https://github.com/Parkdale-Digital/cogni-track/blob/main/scripts/usage-telemetry-diff.ts)
   compare ingested data against provider exports. Outputs live under the
   `audit/telemetry-audit/` directory.
 - **Cron rehearsal notes** in the `audit/cron-dry-run/` directory capture run
