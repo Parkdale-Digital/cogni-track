@@ -70,3 +70,6 @@
 2025-10-08 – Updated telemetry diff key to ignore `service_tier` and reran staging regression; missing counts remain at 46 (CSV) / 32 (DB) indicating OpenAI API still omits specific windows despite enriched metadata.
 Next: Clean legacy `usage_events` rows lacking metadata, evaluate strategies for service tier parity (API limitation vs derived mapping), and rerun staging diff to verify gaps close.
 2025-10-09 – Completed Step 2 audit for Anthropic integration (coupling inventory, schema review, compatibility matrix) with artefact `audit/provider-coupling-analysis.md`.
+2025-10-15 – Authored product documentation drafts (`vision-and-personas`, `anthropic-integration-roadmap`, `beta-readiness-tracker`) using memorybank guidance and cross-linking requirements.
+2025-10-15 – Added architecture documentation drafts (`usage-ingestion-pipeline`, `telemetry-and-observability`, `environment-configuration`) with code references and security notes.
+2025-10-15 – Updated docs-site sidebar ordering for new pages and ran `npx markdownlint-cli` on the six additions; formatting aligned after line-wrap fixes.

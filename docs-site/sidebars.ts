@@ -6,12 +6,25 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Product',
-      items: ['product/prd', 'product/docusaurus-adoption-plan'],
+      items: [
+        'product/prd',
+        'product/vision-and-personas',
+        'product/anthropic-integration-roadmap',
+        'product/beta-readiness-tracker',
+        'product/docusaurus-adoption-plan',
+      ],
     },
     {
       type: 'category',
       label: 'Architecture',
-      items: ['architecture/overview', 'architecture/openai-admin-migration-design', 'architecture/openapi-reference'],
+      items: [
+        'architecture/overview',
+        'architecture/usage-ingestion-pipeline',
+        'architecture/openai-admin-migration-design',
+        'architecture/telemetry-and-observability',
+        'architecture/environment-configuration',
+        'architecture/openapi-reference',
+      ],
     },
     {
       type: 'category',

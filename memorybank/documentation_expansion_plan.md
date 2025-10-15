@@ -2,7 +2,7 @@
 
 ## Overview
 - **Objective:** Expand Docusaurus product and architecture sections using existing repository knowledge so contributors can find roadmap, ingestion, and telemetry guidance without digging through memory bank notes.
-- **Status:** Planning complete; execution pending Documentation Working Group review.
+- **Status:** Draft pages added to docs-site; awaiting Documentation Working Group review and full docs build verification.
 
 ## Proposed Additions
 
