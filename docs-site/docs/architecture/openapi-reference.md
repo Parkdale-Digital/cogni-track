@@ -10,7 +10,7 @@ The OpenAPI document captures the REST surface that CogniTrack integrates with f
 
 - **Format:** YAML (`OpenAPI 3.1`)
 - **Source:** Mirrors `openai/openai-openapi` (tag `v2.3.0`) with CogniTrack annotations where applicable.
-- **Direct download:** [`openapi.documented.yml`](/specs/openapi.documented.yml)
+- **Direct download:** `/specs/openapi.documented.yml` (served from the Docusaurus static assets directory)
 
 Use the download link above for tools such as Stoplight, Postman, or VS Code's OpenAPI preview. The file is served from the Docusaurus `static/specs` directory, ensuring Git history tracks updates alongside the site.
 
