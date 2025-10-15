@@ -63,8 +63,8 @@ last_updated: 2025-10-14
    - Use frontmatter to capture authorship, last updated metadata, and tags.
    - Ensure internal links are updated to use Docusaurus routing.
    - Remaining legacy content to migrate (Target completion: 2025-11-30):
-     - `docs/daily_usage_cron_runbook.md` → Operations runbooks (Owner: Platform Engineering team, Due: 2025-11-15)
-     - `docs/openapi.documented.yml` → Embed as downloadable asset under Architecture section (Owner: API Platform team, Due: 2025-11-30)
+     - [x] `docs/daily_usage_cron_runbook.md` migrated to `operations/daily-usage-cron-runbook.md` in Docusaurus (Completed 2025-10-15 by Platform Engineering)
+     - [x] `docs/openapi.documented.yml` migrated to `architecture/openapi-reference.md` with downloadable asset served via GitHub (`https://raw.githubusercontent.com/cogni-track/cogni-track-replit/main/docs-site/static/specs/openapi.documented.yml`) (Completed 2025-10-15 by API Platform)
 3. **Establish contribution guidelines**
    - Create `CONTRIBUTING.md` at repo root detailing how to run `npm run docs` locally, structure docs, and review PRs.
    - Update the root README to point to the Docusaurus site once deployed. *(Blocked by Milestone 3 - requires public docs URL)*
@@ -77,7 +77,7 @@ last_updated: 2025-10-14
 2. **Continuous Integration**
    - Existing `Docs CI` workflow already runs `npm run docs:build` and `markdown-link-check` on pull requests touching `docs-site/**`; monitor for coverage gaps and expand as the docs surface grows.
    - Evaluate additional quality tooling (e.g., `remark-lint`, `docusaurus-plugin-checklinks`) if we need deeper linting beyond the current link checker.
-3. **Preview & Deployment**
+   3. **Preview & Deployment**
    - **Production Hosting Decision:** GitHub Pages via GitHub Actions (chosen for zero-cost hosting, native GitHub integration, and automatic HTTPS).
    - **Preview Deployments:** Configure GitHub Actions to deploy PR previews to `gh-pages-preview` branch with unique URLs.
    - **Deployment Pipeline:**
@@ -86,6 +86,7 @@ last_updated: 2025-10-14
      - Include deployment status in PR comments
    - **Configuration updates:** Set `url` to `https://cogni-track.github.io` and `baseUrl` to `/cogni-track-replit/` in `docs-site/docusaurus.config.ts` (or wire via `DOCS_URL` env) so GitHub Pages routes resolve correctly.
    - **Custom Domain (Optional):** Configure `docs.cognitrack.io` if/when domain is acquired.
+   - **Status (2025-10-15):** `.github/workflows/docs-deploy.yml` now builds/ships docs to GitHub Pages with PR previews, and default `url/baseUrl` values in `docusaurus.config.ts` target the GitHub Pages host.
 
 ## Phase 4: Enhancements
 
@@ -175,7 +176,7 @@ last_updated: 2025-10-14
 - Build success rate: 100% (current state)
 
 ### Target Metrics (6 months post-launch)
-**Note:** "Launch" is defined as Milestone 3 completion (public docs URL available at https://cogni-track.github.io/cogni-track-replit/)
+**Note:** "Launch" is defined as Milestone 3 completion (public docs URL available at `https://cogni-track.github.io/cogni-track-replit/`)
 
 - **Build Reliability:** Documentation site builds successfully in CI 99%+ of the time
 - **Onboarding Efficiency:** Reduce average onboarding time from 5 days to 3 days (40% improvement)

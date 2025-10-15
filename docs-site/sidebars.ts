@@ -11,7 +11,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Architecture',
-      items: ['architecture/overview', 'architecture/openai-admin-migration-design'],
+      items: ['architecture/overview', 'architecture/openai-admin-migration-design', 'architecture/openapi-reference'],
     },
     {
       type: 'category',
@@ -25,6 +25,7 @@ const sidebars: SidebarsConfig = {
             'operations/deployment-checklist',
             'operations/cost-anomaly-investigation',
             'operations/integrations-monitoring',
+            'operations/daily-usage-cron-runbook',
           ],
         },
         {

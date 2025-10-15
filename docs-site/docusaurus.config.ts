@@ -6,11 +6,12 @@ const config: Config = {
   tagline: 'Centralized knowledge for the CogniTrack platform',
   favicon: 'img/logo.svg',
 
-  url: process.env.DOCS_URL || 'https://cogni-track-docs.vercel.app',
-  baseUrl: '/',
+  url: process.env.DOCS_URL || 'https://cogni-track.github.io',
+  baseUrl: process.env.DOCS_BASE_URL || '/cogni-track-replit/',
 
   organizationName: 'cogni-track',
-  projectName: 'cogni-track-docs',
+  projectName: 'cogni-track-replit',
+  deploymentBranch: 'gh-pages',
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',

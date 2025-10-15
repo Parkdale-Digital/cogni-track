@@ -5,7 +5,7 @@ Track 48-hour staging executions of the daily usage cron when `ENABLE_DAILY_USAG
 
 ## Checklist
 - [ ] Record start/end timestamps for each staging run.
-- [ ] Confirm `CRON_SECRET` header is accepted in staging via `curl` smoke test before scheduling (see `docs/daily_usage_cron_runbook.md`).
+- [ ] Confirm `CRON_SECRET` header is accepted in staging via `curl` smoke test before scheduling (see `docs-site/docs/operations/daily-usage-cron-runbook.md`).
 - [ ] Capture `telemetry` payload from `/api/cron/daily-usage` response and append JSON snippet below.
 - [ ] Note throttling or Retry-After headers observed; link to logs if available.
 - [ ] Verify no simulated keys (`simulatedKeys === 0`).

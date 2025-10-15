@@ -87,7 +87,7 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
 - **Mitigation**: Document UTC contract, set conservative alert thresholds, add regression fixtures.
 - **Confidence Uplift Plan**:
   1. Pilot the parity diff job on three archived CSV exports, storing variance reports in `audit/parity-pilot/`.
-  2. Tune UTC normalization and alert thresholds with data QA, documenting decisions in `docs/daily_usage_cron_runbook.md`.
+  2. Tune UTC normalization and alert thresholds with data QA, documenting decisions in `docs-site/docs/operations/daily-usage-cron-runbook.md`.
   3. Schedule the parity job in staging with alert routing to the on-call channel and capture outcomes in `memorybank/progress.md`.
 - **Confidence Target**: 8/10 after regression tests and scheduled parity job run clean.
 
@@ -121,4 +121,4 @@ Match Cogni Track's daily usage analytics to the granularity and totals shown in
 ## Open Follow-Ups
 - Verify Vercel Cron header injection in staging before production rollout.
 - Define migration rollback SQL once column list is finalized.
-- Operator runbook captured in `docs/daily_usage_cron_runbook.md`; still need parity alarm response section before production enablement.
+- Operator runbook captured in `docs-site/docs/operations/daily-usage-cron-runbook.md`; still need parity alarm response section before production enablement.
