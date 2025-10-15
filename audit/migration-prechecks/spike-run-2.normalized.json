@@ -1,5 +1,5 @@
 {
-  "reportPath": "/home/shawn/projects/congi-projects/cogni-track-replit/audit/spike-results/admin_ingestion_spike.json",
+  "reportPath": "/home/shawn/projects/congi-projects/cogni-track/audit/spike-results/admin_ingestion_spike.json",
   "usageSummary": {
     "totalBuckets": 1,
     "totalRawEvents": 2,

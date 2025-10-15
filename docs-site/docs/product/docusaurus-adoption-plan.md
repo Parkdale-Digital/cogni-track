@@ -64,7 +64,7 @@ last_updated: 2025-10-14
    - Ensure internal links are updated to use Docusaurus routing.
    - Remaining legacy content to migrate (Target completion: 2025-11-30):
      - [x] `docs/daily_usage_cron_runbook.md` migrated to `operations/daily-usage-cron-runbook.md` in Docusaurus (Completed 2025-10-15 by Platform Engineering)
-     - [x] `docs/openapi.documented.yml` migrated to `architecture/openapi-reference.md` with downloadable asset served via GitHub (`https://raw.githubusercontent.com/cogni-track/cogni-track-replit/main/docs-site/static/specs/openapi.documented.yml`) (Completed 2025-10-15 by API Platform)
+     - [x] `docs/openapi.documented.yml` migrated to `architecture/openapi-reference.md` with downloadable asset served via GitHub (`https://raw.githubusercontent.com/cogni-track/cogni-track/main/docs-site/static/specs/openapi.documented.yml`) (Completed 2025-10-15 by API Platform)
 3. **Establish contribution guidelines**
    - Create `CONTRIBUTING.md` at repo root detailing how to run `npm run docs` locally, structure docs, and review PRs.
    - Update the root README to point to the Docusaurus site once deployed. *(Blocked by Milestone 3 - requires public docs URL)*
@@ -82,9 +82,9 @@ last_updated: 2025-10-14
    - **Preview Deployments:** Configure GitHub Actions to deploy PR previews to `gh-pages-preview` branch with unique URLs.
    - **Deployment Pipeline:**
      - On PR: Build docs and run link checks (existing workflow)
-     - On merge to main: Deploy to GitHub Pages at `https://cogni-track.github.io/cogni-track-replit/`
+     - On merge to main: Deploy to GitHub Pages at `https://cogni-track.github.io/cogni-track/`
      - Include deployment status in PR comments
-   - **Configuration updates:** Set `url` to `https://cogni-track.github.io` and `baseUrl` to `/cogni-track-replit/` in `docs-site/docusaurus.config.ts` (or wire via `DOCS_URL` env) so GitHub Pages routes resolve correctly.
+   - **Configuration updates:** Set `url` to `https://cogni-track.github.io` and `baseUrl` to `/cogni-track/` in `docs-site/docusaurus.config.ts` (or wire via `DOCS_URL` env) so GitHub Pages routes resolve correctly.
    - **Custom Domain (Optional):** Configure `docs.cognitrack.io` if/when domain is acquired.
    - **Status (2025-10-15):** `.github/workflows/docs-deploy.yml` now builds/ships docs to GitHub Pages with PR previews, and default `url/baseUrl` values in `docusaurus.config.ts` target the GitHub Pages host.
 
@@ -176,7 +176,7 @@ last_updated: 2025-10-14
 - Build success rate: 100% (current state)
 
 ### Target Metrics (6 months post-launch)
-**Note:** "Launch" is defined as Milestone 3 completion (public docs URL available at `https://cogni-track.github.io/cogni-track-replit/`)
+**Note:** "Launch" is defined as Milestone 3 completion (public docs URL available at `https://cogni-track.github.io/cogni-track/`)
 
 - **Build Reliability:** Documentation site builds successfully in CI 99%+ of the time
 - **Onboarding Efficiency:** Reduce average onboarding time from 5 days to 3 days (40% improvement)
