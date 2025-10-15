@@ -7,7 +7,7 @@ const config: Config = {
   favicon: 'img/logo.svg',
 
   url: process.env.DOCS_URL || 'https://cogni-track.github.io',
-  baseUrl: process.env.DOCS_BASE_URL || '/cogni-track-replit/',
+  baseUrl: process.env.DOCS_BASE_URL || '/cogni-track/',
 
   organizationName: 'cogni-track',
   projectName: 'cogni-track-replit',
@@ -27,7 +27,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/cogni-track/cogni-track-replit/edit/main/docs-site/',
+          editUrl: 'https://github.com/cogni-track/cogni-track/edit/main/docs-site/',
           routeBasePath: 'docs',
         },
         blog: {
@@ -78,7 +78,7 @@ const config: Config = {
         {
           title: 'Community',
           items: [
-            {label: 'GitHub Issues', href: 'https://github.com/cogni-track/cogni-track-replit/issues'},
+            {label: 'GitHub Issues', href: 'https://github.com/cogni-track/cogni-track/issues'},
           ],
         },
         {
