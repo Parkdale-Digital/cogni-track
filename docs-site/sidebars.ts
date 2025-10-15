@@ -7,6 +7,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Product',
       items: [
+        'product/developer-onboarding',
         'product/prd',
         'product/vision-and-personas',
         'product/anthropic-integration-roadmap',
@@ -18,11 +19,13 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Architecture',
       items: [
+        'architecture/system-map',
         'architecture/overview',
         'architecture/usage-ingestion-pipeline',
         'architecture/openai-admin-migration-design',
         'architecture/telemetry-and-observability',
         'architecture/environment-configuration',
+        'architecture/app-api-reference',
         'architecture/openapi-reference',
       ],
     },
@@ -39,6 +42,7 @@ const sidebars: SidebarsConfig = {
             'operations/cost-anomaly-investigation',
             'operations/integrations-monitoring',
             'operations/daily-usage-cron-runbook',
+            'operations/troubleshooting',
           ],
         },
         {
@@ -51,7 +55,10 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Contributing',
-      items: ['contributing/documentation'],
+      items: [
+        'contributing/documentation',
+        'contributing/developer-workflow',
+      ],
     },
   ],
 }

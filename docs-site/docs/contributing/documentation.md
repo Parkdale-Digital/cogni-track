@@ -53,4 +53,4 @@ Use the existing categories in `docs-site/sidebars.ts` to decide where a new pag
 - Use the `description` frontmatter to seed future SEO/search integrations (Algolia DocSearch, etc.). Keep it under 160 characters.
 - Tag blog posts under `docs-site/blog/` with authorship and keywords in the frontmatter to enable future filtering.
 
-Maintaining crisp, accurate docs is part of the Definition of Done. If you spot outdated guidance, update it or file an issue so the docs stay trusted.
+Maintaining crisp, accurate docs is part of the Definition of Done. If you spot outdated guidance, update it or file an issue so the docs stay trusted. Pair this guide with the [Developer Workflow](developer-workflow.md) to align code and documentation reviews.

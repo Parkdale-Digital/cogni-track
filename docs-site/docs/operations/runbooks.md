@@ -18,6 +18,7 @@ This section curates operational playbooks for the CogniTrack platform. Each run
 - [Deployment checklist](deployment-checklist.md)
 - [Cost anomaly investigation](cost-anomaly-investigation.md)
 - [Integrations monitoring](integrations-monitoring.md)
+- [Troubleshooting guide](troubleshooting.md)
 - [OpenAI Admin security controls](security/openai-admin-security-controls.md)
 
 :::note Phase 2 migration

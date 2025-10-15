@@ -3,7 +3,7 @@ title: Platform Architecture Overview
 sidebar_position: 1
 ---
 
-The CogniTrack platform combines a Next.js application, serverless APIs, and data persistence powered by Drizzle ORM. This page captures the high-level system components that every contributor should understand before diving into feature work.
+The CogniTrack platform combines a Next.js application, serverless APIs, and data persistence powered by Drizzle ORM. This page captures the high-level system components that every contributor should understand before diving into feature work. For a visual map of runtime dependencies, see the [System Map & Components](system-map.md).
 
 ## Core components
 

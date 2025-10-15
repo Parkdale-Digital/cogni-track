@@ -10,10 +10,10 @@ CogniTrack Docs is the centralized home for onboarding, architecture decisions, 
 
 ## What you will find
 
-- **Product context:** Understand the CogniTrack vision, goals, and success metrics in the [Product section](product/prd.md).
-- **Architecture references:** Review diagrams, data flows, and integration contracts starting with the [architecture overview](architecture/overview.md).
-- **Operations:** Follow step-by-step instructions for day-to-day operations, including [runbooks](operations/runbooks.md) and [security controls](operations/security/openai-admin-security-controls.md).
-- **Contributing:** Learn how to [submit documentation updates](contributing/documentation.md) and keep knowledge current.
+- **Onboarding:** Start with the [Developer Onboarding Guide](product/developer-onboarding.md) for repo layout, setup steps, and validation commands.
+- **Architecture references:** Review diagrams and data flows beginning with the [System Map](architecture/system-map.md) and [Usage Ingestion Pipeline](architecture/usage-ingestion-pipeline.md).
+- **Operations:** Follow step-by-step instructions, including [runbooks](operations/runbooks.md), [troubleshooting tips](operations/troubleshooting.md), and [security controls](operations/security/openai-admin-security-controls.md).
+- **Contributing:** Learn how to [submit documentation updates](contributing/documentation.md) and follow the [Developer Workflow](contributing/developer-workflow.md).
 
 ## Get involved
 
