@@ -69,3 +69,4 @@ screenshots/
 # Docusaurus
 docs-site/build/
 docs-site/.docusaurus/
+docs-site/bun.lock

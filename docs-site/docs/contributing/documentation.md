@@ -16,10 +16,10 @@ CogniTrack documentation lives alongside the product code so engineers can propo
    ```bash
    npm run docs
    ```
-   The command proxies into the `docs-site` workspace and launches a hot-reloading server at `http://localhost:3000`.
+   The command proxies into the `docs-site` workspace and launches a hot-reloading server at `http://localhost:3001`.
 3. Stop the server with `Ctrl + C` when you are done previewing changes.
 
-> **Tip:** Need to iterate on the Next.js app and docs simultaneously? Run `npm run dev` in one terminal and `npm run docs` in another.
+> **Tip:** Need to iterate on the Next.js app and docs simultaneously? Run `npm run dev` in one terminal (port 3000) and `npm run docs` in another (port 3001). Both services can run concurrently without port conflicts.
 
 ## Information Architecture
 

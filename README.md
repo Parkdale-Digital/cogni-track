@@ -24,7 +24,9 @@ npm install --prefix docs-site
 npm run docs
 ```
 
-The docs command proxies into the `docs-site` workspace and launches Docusaurus on [http://localhost:3000](http://localhost:3000). Update content under `docs-site/docs/` and refer to the [documentation contribution guide](docs-site/docs/contributing/documentation.md) for structure and review expectations.
+The docs command proxies into the `docs-site` workspace and launches Docusaurus on [http://localhost:3001](http://localhost:3001). Update content under `docs-site/docs/` and refer to the [documentation contribution guide](docs-site/docs/contributing/documentation.md) for structure and review expectations.
+
+> **Note:** The documentation site runs on port 3001 to avoid conflicts with the Next.js application (port 3000). You can run both services concurrently for full-stack development.
 
 ## Project structure
 

@@ -9,9 +9,9 @@
     "lint": "next lint",
     "test": "tsx tests/runAllTests.ts",
     "usage:backfill": "tsx scripts/usage-backfill.ts",
-    "docs": "npm run start --prefix docs-site",
-    "docs:build": "npm run build --prefix docs-site",
-    "docs:serve": "npm run serve --prefix docs-site"
+    "docs": "cd docs-site && npm run start",
+    "docs:build": "cd docs-site && npm run build",
+    "docs:serve": "cd docs-site && npm run serve"
   },
   "keywords": [],
   "author": "",
