@@ -3,11 +3,12 @@
 - **Backfill tooling (CLI + metadata)**: ✅ Complete — daily windows populate with project/API/user context.
 - **Constraint upsert via index**: ✅ Complete — Drizzle metadata now surfaces expression columns, upsert path active.
 - **Cron rehearsal (48-hour staging run)**: ⏳ Pending — run cron job with monitoring per plan Workstream 2.
-- **UI/API surfacing of new fields**: ⏳ Pending — dashboards and `/api/usage` not yet updated for window metadata.
+- **UI/API surfacing of new fields**: ✅ Complete — dashboards and `/api/usage` expose window metadata with legacy fallback (verified 2025-10-16 via `src/app/api/usage/route.ts` + `FilterableAnalyticsDashboard`).
 
 # Daily Usage Progress Log
 
 ## 2025-10-09
+- Validation (2025-10-16): Confirmed `/api/usage` metadata selection fallback and analytics dashboard filters are live; status overview updated accordingly. Remaining blocker is the 48-hour cron rehearsal (see Workstream 2 checklist in `audit/cron-dry-run/summary.md`).
 - Analytics UX Phase 1 implemented: SkipLink component added and wired in layout with main content region focusable via id="main-content".
 - Analytics page uses role="region" with aria-labelledby on page title; sections maintain aria-labelledby patterns.
 - AdvancedFilters: focus moves to panel on expand; aria-live polite status for apply/clear; date range validation with aria-invalid and inline error messaging; Apply disabled on invalid.
